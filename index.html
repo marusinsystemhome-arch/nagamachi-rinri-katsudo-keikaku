@@ -18,7 +18,6 @@
 <meta name="apple-mobile-web-app-title" content="長町倫理_活動計画">
 <meta name="application-name" content="長町倫理_活動計画">
 
-<script src="https://accounts.google.com/gsi/client"></script>
 <style>
   :root {
     --bg: #F4F5F0;
@@ -221,6 +220,24 @@
   .banner-err { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 35%, transparent); color: var(--ink); }
   .banner-info { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--ink); }
   .banner .btn { margin-top: 8px; }
+
+  .pin-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    max-width: 260px;
+  }
+  .pin-input {
+    letter-spacing: 0.3em;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    text-align: center;
+  }
+  .pin-error {
+    margin: 8px 0 0;
+    color: var(--danger);
+    font-weight: 700;
+    font-size: 12.5px;
+  }
 
   /* ---------- History ---------- */
   details.history {
@@ -451,20 +468,18 @@
     <div class="masthead-text">
       <p class="eyebrow">仙台長町倫理法人会</p>
       <h1>長町倫理_活動計画</h1>
-      <p class="sub">年間行事に、協議事項・実行タスク・実行責任者・実行日を書き込んでいくワークシートです。Googleでログインすると Google ドライブに保存・自動読み込みされます。</p>
+      <p class="sub">年間行事に、協議事項・実行タスク・実行責任者・実行日を書き込んでいくワークシートです。PINを入力すると保存・自動読み込みされます。</p>
     </div>
   </div>
 
-  <div id="signinBanner" class="banner banner-warn show">
-    <strong>Googleでログインしてください</strong>
-    <span>ログインすると、これまでの入力内容を読み込んだり、Google ドライブに保存できるようになります。ログインしなくても表の閲覧・入力自体は可能です。</span>
-    <div><button class="btn btn-primary" id="googleSignInBtnInline" type="button">Googleでログイン</button></div>
-  </div>
-
-  <div id="reauthBanner" class="banner banner-warn">
-    <strong>ログインの有効期限が切れました</strong>
-    <span>もう一度ログインしてください。入力中の内容は消えません。</span>
-    <div><button class="btn btn-primary" id="reauthBtn" type="button">再ログイン</button></div>
+  <div id="pinBanner" class="banner banner-warn show">
+    <strong>PINを入力してください</strong>
+    <span>入力すると、これまでの内容を読み込んだり、保存できるようになります。入力しなくても表の閲覧・下書き入力自体は可能です。</span>
+    <form id="pinForm" class="pin-form" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="[0-9]*" id="pinInput" class="field pin-input" placeholder="PIN" maxlength="12" autocomplete="off">
+      <button class="btn btn-primary" id="pinSubmitBtn" type="submit">解除</button>
+    </form>
+    <p id="pinError" class="pin-error" style="display:none;">PINが正しくありません。もう一度入力してください。</p>
   </div>
 
   <div id="errorBanner" class="banner banner-err">
@@ -475,15 +490,14 @@
 
   <div id="freshBanner" class="banner banner-info">
     <strong>まだ保存データがありません</strong>
-    <span>下の表に入力し、「保存」を押すとこのシートが Google ドライブに作成されます。</span>
+    <span>下の表に入力すると、自動的に保存されます。</span>
   </div>
 
   <div class="statusbar">
-    <span class="sync-pill"><span id="syncDot" class="dot pulse"></span><span id="syncText">未ログイン</span></span>
+    <span class="sync-pill"><span id="syncDot" class="dot pulse"></span><span id="syncText">未解除</span></span>
     <span class="spacer"></span>
-    <span id="dirtyFlag" class="dirty-flag">● 未保存の変更があります</span>
-    <button class="btn btn-primary" id="googleSignInBtn" type="button">Googleでログイン</button>
-    <button class="btn" id="signOutBtn" type="button" style="display:none;">ログアウト</button>
+    <span id="dirtyFlag" class="dirty-flag">● 保存中…</span>
+    <button class="btn" id="lockBtn" type="button" style="display:none;">ロックする</button>
     <button class="btn" id="reloadBtn" type="button">最新を再読み込み</button>
     </div>
 
@@ -544,9 +558,8 @@
   "use strict";
 
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
-  var GOOGLE_CLIENT_ID = "983456374592-5morb4nqt10tddeop6o08klcgi8bksg8.apps.googleusercontent.com";
-  var DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-  var TOKEN_STORAGE_KEY = "nagamachi-rinri-keikaku:googleToken";
+  var APPS_SCRIPT_URL = "REPLACE_WITH_APPS_SCRIPT_WEB_APP_URL";
+  var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
 
   var FISCAL_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -588,7 +601,8 @@
     fileId: null,
     dirty: false,
     saving: false,
-    signedIn: false,
+    unlocked: false,
+    pin: null,
     history: []
   };
 
@@ -598,12 +612,11 @@
     syncText: document.getElementById("syncText"),
     dirtyFlag: document.getElementById("dirtyFlag"),
     reloadBtn: document.getElementById("reloadBtn"),
-    googleSignInBtn: document.getElementById("googleSignInBtn"),
-    googleSignInBtnInline: document.getElementById("googleSignInBtnInline"),
-    signOutBtn: document.getElementById("signOutBtn"),
-    signinBanner: document.getElementById("signinBanner"),
-    reauthBanner: document.getElementById("reauthBanner"),
-    reauthBtn: document.getElementById("reauthBtn"),
+    lockBtn: document.getElementById("lockBtn"),
+    pinBanner: document.getElementById("pinBanner"),
+    pinForm: document.getElementById("pinForm"),
+    pinInput: document.getElementById("pinInput"),
+    pinError: document.getElementById("pinError"),
     errorBanner: document.getElementById("errorBanner"),
     errorBannerMsg: document.getElementById("errorBannerMsg"),
     retryLoadBtn: document.getElementById("retryLoadBtn"),
@@ -645,7 +658,7 @@
   }
 
   function hideAllBanners() {
-    [els.signinBanner, els.reauthBanner, els.errorBanner, els.freshBanner].forEach(function (b) {
+    [els.pinBanner, els.errorBanner, els.freshBanner].forEach(function (b) {
       b.classList.remove("show");
     });
   }
@@ -666,7 +679,16 @@
     els.syncText.textContent = text;
   }
 
-  var autoSaveTimer=null;function scheduleAutoSave(){if(autoSaveTimer)clearTimeout(autoSaveTimer);autoSaveTimer=setTimeout(function(){autoSaveTimer=null;saveNow();},1500);}function setDirty(v){state.dirty=v;els.dirtyFlag.classList.toggle("show",v);if(v&&state.signedIn){scheduleAutoSave();}}
+  var autoSaveTimer = null;
+  function scheduleAutoSave() {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(function () { autoSaveTimer = null; saveNow(); }, 1500);
+  }
+  function setDirty(v) {
+    state.dirty = v;
+    els.dirtyFlag.classList.toggle("show", v);
+    if (v && state.pin) { scheduleAutoSave(); }
+  }
 
   function rowStatus(ev) {
     var filled = [ev.agenda, ev.task, ev.owner, ev.date].filter(function (v) { return v && v.trim(); }).length;
@@ -860,9 +882,9 @@
   function loadVersion(revision, isLatest) {
     function doLoad() {
       setSync("loading", "読み込み中…");
-      driveGetRevisionContent(state.fileId, revision.id)
-        .then(function (json) {
-          applyLoadedPayload(json, json.savedAt || revision.modifiedTime);
+      callBackend("loadRevision", { fileId: state.fileId, revisionId: revision.id })
+        .then(function (res) {
+          applyLoadedPayload(res.content, res.content.savedAt || revision.modifiedTime);
           setSync("ok", (isLatest ? "最新版を表示中 · " : fmtWhen(revision.modifiedTime) + " 時点の版を表示中 · ") + "保存: " + (state.lastSavedAt ? fmtWhen(state.lastSavedAt) : "-"));
         })
         .catch(function (err) { handleApiError(err, "load"); });
@@ -877,174 +899,89 @@
     }
   }
 
-  // ---------------- Google auth ----------------
+  // ---------------- PIN + Apps Script backend ----------------
 
-  var tokenClient = null;
-  var accessToken = null;
-  var tokenExpiresAt = 0;
-
-  function isTokenValid() {
-    return !!accessToken && Date.now() < tokenExpiresAt - 30000;
+  function loadStoredPin() {
+    try { return localStorage.getItem(PIN_STORAGE_KEY) || null; } catch (e) { return null; }
   }
 
-  function storeToken(token, expiresInSec) {
-    accessToken = token;
-    tokenExpiresAt = Date.now() + expiresInSec * 1000;
-    try {
-      localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify({ token: token, expiresAt: tokenExpiresAt }));
-    } catch (e) { /* storage unavailable, keep in-memory only */ }
+  function storePin(pin) {
+    try { localStorage.setItem(PIN_STORAGE_KEY, pin); } catch (e) { /* ignore */ }
   }
 
-  function loadStoredToken() {
-    try {
-      var raw = localStorage.getItem(TOKEN_STORAGE_KEY);
-      if (!raw) return false;
-      var data = JSON.parse(raw);
-      if (data && data.token && data.expiresAt > Date.now() + 30000) {
-        accessToken = data.token;
-        tokenExpiresAt = data.expiresAt;
-        return true;
-      }
-    } catch (e) { /* ignore */ }
-    return false;
+  function clearStoredPin() {
+    try { localStorage.removeItem(PIN_STORAGE_KEY); } catch (e) { /* ignore */ }
   }
 
-  function clearStoredToken() {
-    accessToken = null;
-    tokenExpiresAt = 0;
-    try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch (e) { /* ignore */ }
-  }
-
-  function setSignedInUi(signedIn) {
-    state.signedIn = signedIn;
-    els.googleSignInBtn.style.display = signedIn ? "none" : "";
-    els.signOutBtn.style.display = signedIn ? "" : "none";
-    if (!signedIn) {
+  function setUnlockedUi(unlocked) {
+    state.unlocked = unlocked;
+    els.lockBtn.style.display = unlocked ? "" : "none";
+    if (!unlocked) {
       hideAllBanners();
-      els.signinBanner.classList.add("show");
-      setSync("warn", "未ログイン");
+      els.pinBanner.classList.add("show");
+      setSync("warn", "未解除");
       els.historyPanel.style.display = "none";
     }
   }
 
-  function initGis() {
-    if (typeof google === "undefined" || !google.accounts || !google.accounts.oauth2) {
-      hideAllBanners();
-      els.errorBannerMsg.textContent = "Googleログイン機能を読み込めませんでした。ネットワーク接続を確認してページを再読み込みしてください。";
-      els.errorBanner.classList.add("show");
-      return;
-    }
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: DRIVE_SCOPE,
-      callback: function (resp) {
-        if (resp.error) {
-          setSync("err", "ログインに失敗しました");
-          if (resp.error !== "popup_closed_by_user" && resp.error !== "access_denied") {
-            hideAllBanners();
-            els.errorBannerMsg.textContent = "Googleログインでエラーが発生しました（" + resp.error + "）。";
-            els.errorBanner.classList.add("show");
-          }
-          return;
-        }
-        storeToken(resp.access_token, resp.expires_in);
-        setSignedInUi(true);
-        loadLatest();
-      }
-    });
-  }
-
-  function signIn() {
-    if (!tokenClient) { initGis(); }
-    if (!tokenClient) return;
-    tokenClient.requestAccessToken({ prompt: isTokenValid() ? "" : "consent" });
-  }
-
-  function signOut() {
-    var token = accessToken;
-    clearStoredToken();
-    setSignedInUi(false);
-    if (token && typeof google !== "undefined" && google.accounts && google.accounts.oauth2) {
-      google.accounts.oauth2.revoke(token, function () {});
-    }
-  }
-
-  // ---------------- Drive REST API ----------------
-
-  function driveFetch(url, options) {
-    options = options || {};
-    options.headers = Object.assign({}, options.headers, { Authorization: "Bearer " + accessToken });
-    return fetch(url, options).then(function (res) {
-      if (res.status === 401) {
-        clearStoredToken();
-        var err = new Error("ログインの有効期限が切れました");
-        err.authExpired = true;
-        throw err;
-      }
-      if (!res.ok) {
-        return res.text().then(function (text) {
-          var err = new Error("Drive API エラー (" + res.status + "): " + text.slice(0, 200));
-          err.status = res.status;
-          throw err;
-        });
-      }
-      var ct = res.headers.get("content-type") || "";
-      return ct.indexOf("application/json") !== -1 ? res.json() : res.text();
-    });
-  }
-
-  function driveFindFile() {
-    var q = encodeURIComponent("name='" + FILE_TITLE + "' and trashed=false");
-    return driveFetch("https://www.googleapis.com/drive/v3/files?q=" + q + "&fields=files(id,name,modifiedTime)&pageSize=5")
-      .then(function (res) { return (res.files && res.files[0]) || null; });
-  }
-
-  function driveCreateFile(contentObj) {
-    var boundary = "nagamachikeikaku_" + Math.random().toString(36).slice(2);
-    var metadata = { name: FILE_TITLE, mimeType: "application/json" };
-    var body =
-      "--" + boundary + "\r\n" +
-      "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
-      JSON.stringify(metadata) + "\r\n" +
-      "--" + boundary + "\r\n" +
-      "Content-Type: application/json\r\n\r\n" +
-      JSON.stringify(contentObj) + "\r\n" +
-      "--" + boundary + "--";
-    return driveFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime", {
+  function callBackend(action, extra) {
+    var body = Object.assign({ action: action, pin: state.pin }, extra || {});
+    return fetch(APPS_SCRIPT_URL, {
       method: "POST",
-      headers: { "Content-Type": "multipart/related; boundary=" + boundary },
-      body: body
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids a CORS preflight against Apps Script
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      if (!res.ok) { throw new Error("サーバーエラー (" + res.status + ")"); }
+      return res.json();
+    }).then(function (res) {
+      if (!res.ok) {
+        if (res.error === "invalid_pin") {
+          var err = new Error("PINが正しくありません");
+          err.invalidPin = true;
+          throw err;
+        }
+        throw new Error(res.message || res.error || "不明なエラー");
+      }
+      return res;
     });
   }
 
-  function driveUpdateFile(fileId, contentObj) {
-    return driveFetch("https://www.googleapis.com/upload/drive/v3/files/" + fileId + "?uploadType=media&fields=id,name,modifiedTime", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(contentObj)
+  function unlockWithPin(pin) {
+    els.pinError.style.display = "none";
+    var submitBtn = document.getElementById("pinSubmitBtn");
+    if (submitBtn) submitBtn.disabled = true;
+    state.pin = pin;
+    setSync("loading", "確認中…");
+    return loadLatest(true).then(function () {
+      storePin(pin);
+      setUnlockedUi(true);
+    }).catch(function (err) {
+      state.pin = null;
+      if (err && err.invalidPin) {
+        els.pinError.style.display = "";
+        setSync("warn", "未解除");
+      } else {
+        handleApiError(err, "load");
+      }
+    }).then(function () {
+      if (submitBtn) submitBtn.disabled = false;
     });
   }
 
-  function driveGetContent(fileId) {
-    return driveFetch("https://www.googleapis.com/drive/v3/files/" + fileId + "?alt=media");
-  }
-
-  function driveListRevisions(fileId) {
-    return driveFetch("https://www.googleapis.com/drive/v3/files/" + fileId + "/revisions?fields=revisions(id,modifiedTime)")
-      .then(function (res) { return res.revisions || []; });
-  }
-
-  function driveGetRevisionContent(fileId, revisionId) {
-    return driveFetch("https://www.googleapis.com/drive/v3/files/" + fileId + "/revisions/" + revisionId + "?alt=media");
+  function lock() {
+    clearStoredPin();
+    state.pin = null;
+    state.fileId = null;
+    setUnlockedUi(false);
   }
 
   function handleApiError(err, ctx) {
     hideAllBanners();
-    if (err && err.authExpired) {
-      setSignedInUi(false);
-      els.signinBanner.classList.remove("show");
-      els.reauthBanner.classList.add("show");
-      setSync("err", "要再ログイン");
+    if (err && err.invalidPin) {
+      clearStoredPin();
+      state.pin = null;
+      setUnlockedUi(false);
+      els.pinError.style.display = "";
     } else {
       els.errorBannerMsg.textContent = (err && err.message) ? err.message : "しばらくしてからもう一度お試しください。";
       els.errorBanner.classList.add("show");
@@ -1052,20 +989,21 @@
     }
     if (ctx === "save") {
       state.saving = false;
-      }
+    }
   }
 
-  function loadLatest() {
-    if (!state.signedIn) {
-      setSignedInUi(false);
+  function loadLatest(isUnlockAttempt) {
+    if (!state.pin) {
+      setUnlockedUi(false);
       render();
-      return;
+      return Promise.resolve();
     }
     hideAllBanners();
     setSync("loading", "読み込み中…");
-    driveFindFile()
-      .then(function (file) {
-        if (!file) {
+
+    return callBackend("load")
+      .then(function (res) {
+        if (!res.exists) {
           state.fileId = null;
           state.events = SEED_EVENTS.map(function (e) { return Object.assign({}, e); });
           state.nextId = SEED_EVENTS.length + 1;
@@ -1077,20 +1015,20 @@
           setSync("ok", "保存データなし（初回入力待ち）");
           return;
         }
-        state.fileId = file.id;
-        return driveGetContent(file.id).then(function (json) {
-          applyLoadedPayload(json, json.savedAt || file.modifiedTime);
-          setSync("ok", "最新版を読み込みました · 保存: " + (state.lastSavedAt ? fmtWhen(state.lastSavedAt) : "-"));
-          return driveListRevisions(file.id).then(renderHistory).catch(function () {});
-        });
+        state.fileId = res.fileId;
+        applyLoadedPayload(res.content, res.content.savedAt || res.modifiedTime);
+        setSync("ok", "最新版を読み込みました · 保存: " + (state.lastSavedAt ? fmtWhen(state.lastSavedAt) : "-"));
+        renderHistory(res.revisions || []);
       })
-      .catch(function (err) { handleApiError(err, "load"); });
+      .catch(function (err) {
+        if (!isUnlockAttempt) handleApiError(err, "load");
+        throw err;
+      });
   }
 
   function saveNow() {
-    if (!state.signedIn || state.saving) return;
+    if (!state.pin || state.saving) return;
     state.saving = true;
-    hideAllBanners();
     setSync("loading", "保存中…");
 
     var payload = {
@@ -1099,16 +1037,13 @@
       events: state.events
     };
 
-    var writeOp = state.fileId
-      ? driveUpdateFile(state.fileId, payload)
-      : driveCreateFile(payload).then(function (file) { state.fileId = file.id; return file; });
-
-    writeOp.then(function () {
+    callBackend("save", { payload: payload }).then(function (res) {
       state.saving = false;
+      state.fileId = res.fileId;
       state.lastSavedAt = payload.savedAt;
       setDirty(false);
       setSync("ok", "保存しました · " + fmtWhen(payload.savedAt));
-      driveListRevisions(state.fileId).then(renderHistory).catch(function () {});
+      callBackend("load").then(function (r) { renderHistory(r.revisions || []); }).catch(function () {});
     }).catch(function (err) { handleApiError(err, "save"); });
   }
 
@@ -1121,20 +1056,30 @@
       loadLatest();
     }
   });
-  els.retryLoadBtn.addEventListener("click", loadLatest);
+  els.retryLoadBtn.addEventListener("click", function () { loadLatest(); });
   els.addRowBtn.addEventListener("click", addRow);
-  els.googleSignInBtn.addEventListener("click", signIn);
-  els.googleSignInBtnInline.addEventListener("click", signIn);
-  els.signOutBtn.addEventListener("click", signOut);
-  els.reauthBtn.addEventListener("click", signIn);
+  els.lockBtn.addEventListener("click", lock);
+  els.pinForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var pin = els.pinInput.value.trim();
+    if (!pin) return;
+    unlockWithPin(pin);
+  });
 
   render();
-  initGis();
-  if (loadStoredToken()) {
-    setSignedInUi(true);
-    loadLatest();
+  var storedPin = loadStoredPin();
+  if (storedPin) {
+    state.pin = storedPin;
+    setSync("loading", "確認中…");
+    loadLatest(true).then(function () {
+      setUnlockedUi(true);
+    }).catch(function () {
+      state.pin = null;
+      clearStoredPin();
+      setUnlockedUi(false);
+    });
   } else {
-    setSignedInUi(false);
+    setUnlockedUi(false);
   }
 })();
 </script>
