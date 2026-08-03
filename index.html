@@ -477,7 +477,7 @@
     <span>入力すると、これまでの内容を読み込んだり、保存できるようになります。入力しなくても表の閲覧・下書き入力自体は可能です。</span>
     <form id="pinForm" class="pin-form" autocomplete="off">
       <input type="password" inputmode="numeric" pattern="[0-9]*" id="pinInput" class="field pin-input" placeholder="PIN" maxlength="12" autocomplete="off">
-      <button class="btn btn-primary" id="pinSubmitBtn" type="submit">解除</button>
+      <button class="btn btn-primary" id="pinSubmitBtn" type="submit">登録</button>
     </form>
     <p id="pinError" class="pin-error" style="display:none;">PINが正しくありません。もう一度入力してください。</p>
   </div>
@@ -494,7 +494,7 @@
   </div>
 
   <div class="statusbar">
-    <span class="sync-pill"><span id="syncDot" class="dot pulse"></span><span id="syncText">未解除</span></span>
+    <span class="sync-pill"><span id="syncDot" class="dot pulse"></span><span id="syncText">未登録</span></span>
     <span class="spacer"></span>
     <span id="dirtyFlag" class="dirty-flag">● 保存中…</span>
     <button class="btn" id="lockBtn" type="button" style="display:none;">ロックする</button>
@@ -919,7 +919,7 @@
     if (!unlocked) {
       hideAllBanners();
       els.pinBanner.classList.add("show");
-      setSync("warn", "未解除");
+      setSync("warn", "未登録");
       els.historyPanel.style.display = "none";
     }
   }
@@ -959,7 +959,7 @@
       state.pin = null;
       if (err && err.invalidPin) {
         els.pinError.style.display = "";
-        setSync("warn", "未解除");
+        setSync("warn", "未登録");
       } else {
         handleApiError(err, "load");
       }
