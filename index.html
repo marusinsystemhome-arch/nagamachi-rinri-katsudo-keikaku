@@ -497,7 +497,6 @@
     <span class="sync-pill"><span id="syncDot" class="dot pulse"></span><span id="syncText">未登録</span></span>
     <span class="spacer"></span>
     <span id="dirtyFlag" class="dirty-flag">● 保存中…</span>
-    <button class="btn" id="lockBtn" type="button" style="display:none;">ロックする</button>
     <button class="btn" id="reloadBtn" type="button">最新を再読み込み</button>
     </div>
 
@@ -612,7 +611,6 @@
     syncText: document.getElementById("syncText"),
     dirtyFlag: document.getElementById("dirtyFlag"),
     reloadBtn: document.getElementById("reloadBtn"),
-    lockBtn: document.getElementById("lockBtn"),
     pinBanner: document.getElementById("pinBanner"),
     pinForm: document.getElementById("pinForm"),
     pinInput: document.getElementById("pinInput"),
@@ -915,7 +913,6 @@
 
   function setUnlockedUi(unlocked) {
     state.unlocked = unlocked;
-    els.lockBtn.style.display = unlocked ? "" : "none";
     if (!unlocked) {
       hideAllBanners();
       els.pinBanner.classList.add("show");
@@ -968,12 +965,6 @@
     });
   }
 
-  function lock() {
-    clearStoredPin();
-    state.pin = null;
-    state.fileId = null;
-    setUnlockedUi(false);
-  }
 
   function handleApiError(err, ctx) {
     hideAllBanners();
@@ -1058,7 +1049,6 @@
   });
   els.retryLoadBtn.addEventListener("click", function () { loadLatest(); });
   els.addRowBtn.addEventListener("click", addRow);
-  els.lockBtn.addEventListener("click", lock);
   els.pinForm.addEventListener("submit", function (e) {
     e.preventDefault();
     var pin = els.pinInput.value.trim();
