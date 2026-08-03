@@ -668,10 +668,7 @@
     els.syncText.textContent = text;
   }
 
-  function setDirty(v) {
-    state.dirty = v;
-    els.dirtyFlag.classList.toggle("show", v);
-  }
+  var autoSaveTimer=null;function scheduleAutoSave(){if(autoSaveTimer)clearTimeout(autoSaveTimer);autoSaveTimer=setTimeout(function(){autoSaveTimer=null;saveNow();},1500);}function setDirty(v){state.dirty=v;els.dirtyFlag.classList.toggle("show",v);if(v&&state.signedIn){scheduleAutoSave();}}
 
   function rowStatus(ev) {
     var filled = [ev.agenda, ev.task, ev.owner, ev.date].filter(function (v) { return v && v.trim(); }).length;
