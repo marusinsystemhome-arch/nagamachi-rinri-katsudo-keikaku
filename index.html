@@ -485,8 +485,7 @@
     <button class="btn btn-primary" id="googleSignInBtn" type="button">Googleでログイン</button>
     <button class="btn" id="signOutBtn" type="button" style="display:none;">ログアウト</button>
     <button class="btn" id="reloadBtn" type="button">最新を再読み込み</button>
-    <button class="btn btn-primary" id="saveBtn" type="button" disabled>保存</button>
-  </div>
+    </div>
 
   <details class="history" id="historyPanel" style="display:none;">
     <summary>変更履歴（Google ドライブの版管理機能を利用）</summary>
@@ -599,7 +598,6 @@
     syncText: document.getElementById("syncText"),
     dirtyFlag: document.getElementById("dirtyFlag"),
     reloadBtn: document.getElementById("reloadBtn"),
-    saveBtn: document.getElementById("saveBtn"),
     googleSignInBtn: document.getElementById("googleSignInBtn"),
     googleSignInBtnInline: document.getElementById("googleSignInBtnInline"),
     signOutBtn: document.getElementById("signOutBtn"),
@@ -921,7 +919,6 @@
     state.signedIn = signedIn;
     els.googleSignInBtn.style.display = signedIn ? "none" : "";
     els.signOutBtn.style.display = signedIn ? "" : "none";
-    els.saveBtn.disabled = !signedIn;
     if (!signedIn) {
       hideAllBanners();
       els.signinBanner.classList.add("show");
@@ -1055,9 +1052,7 @@
     }
     if (ctx === "save") {
       state.saving = false;
-      els.saveBtn.disabled = !state.signedIn;
-      els.saveBtn.textContent = "保存";
-    }
+      }
   }
 
   function loadLatest() {
@@ -1068,8 +1063,6 @@
     }
     hideAllBanners();
     setSync("loading", "読み込み中…");
-    els.saveBtn.disabled = false;
-
     driveFindFile()
       .then(function (file) {
         if (!file) {
@@ -1097,8 +1090,6 @@
   function saveNow() {
     if (!state.signedIn || state.saving) return;
     state.saving = true;
-    els.saveBtn.disabled = true;
-    els.saveBtn.textContent = "保存中…";
     hideAllBanners();
     setSync("loading", "保存中…");
 
@@ -1114,8 +1105,6 @@
 
     writeOp.then(function () {
       state.saving = false;
-      els.saveBtn.disabled = false;
-      els.saveBtn.textContent = "保存";
       state.lastSavedAt = payload.savedAt;
       setDirty(false);
       setSync("ok", "保存しました · " + fmtWhen(payload.savedAt));
@@ -1123,7 +1112,6 @@
     }).catch(function (err) { handleApiError(err, "save"); });
   }
 
-  els.saveBtn.addEventListener("click", saveNow);
   els.reloadBtn.addEventListener("click", function () {
     if (state.dirty) {
       customConfirm("未保存の変更は失われます。よろしいですか？", "再読み込み").then(function (ok) {
