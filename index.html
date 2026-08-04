@@ -862,7 +862,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.1.7";
+  var APP_VERSION = "1.2.0";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
@@ -911,7 +911,8 @@
     saving: false,
     unlocked: false,
     pin: null,
-    history: []
+    history: [],
+    lastErrorCtx: null
   };
 
   var els = {
@@ -1008,9 +1009,22 @@
   }
 
   var autoSaveTimer = null;
+  var saveRetryTimer = null;
+  function clearSaveTimers() {
+    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+    if (saveRetryTimer) { clearTimeout(saveRetryTimer); saveRetryTimer = null; }
+  }
   function scheduleAutoSave() {
-    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    clearSaveTimers();
     autoSaveTimer = setTimeout(function () { autoSaveTimer = null; saveNow(); }, 1500);
+  }
+  // A save that fails (network blip, cold-start timeout, ...) must not just
+  // sit there — nothing else re-triggers scheduleAutoSave() until the next
+  // edit, so without this the failed change would never actually reach
+  // Drive unless the user happens to type something else afterwards.
+  function scheduleSaveRetry() {
+    clearSaveTimers();
+    saveRetryTimer = setTimeout(function () { saveRetryTimer = null; saveNow(); }, 8000);
   }
   function setDirty(v) {
     state.dirty = v;
@@ -1395,6 +1409,11 @@
       setUnlockedUi(false);
       els.pinError.style.display = "";
     } else {
+      state.lastErrorCtx = ctx;
+      // Retrying a failed SAVE must re-send the local edit, never reload —
+      // loadLatest() overwrites state.events from the server unconditionally,
+      // so using it here would silently discard whatever the user just typed.
+      els.retryLoadBtn.textContent = ctx === "save" ? "もう一度保存する" : "もう一度読み込む";
       els.errorBannerMsg.textContent = (err && err.message) ? err.message : "しばらくしてからもう一度お試しください。";
       els.errorBanner.classList.add("show");
       setSync("err");
@@ -1456,7 +1475,10 @@
       setDirty(false);
       setSync("ok");
       callBackend("load").then(function (r) { renderHistory(r.revisions || []); }).catch(function () {});
-    }).catch(function (err) { handleApiError(err, "save"); });
+    }).catch(function (err) {
+      handleApiError(err, "save");
+      if (!(err && err.invalidPin) && state.dirty) scheduleSaveRetry();
+    });
   }
 
   els.reloadBtn.addEventListener("click", function () {
@@ -1469,7 +1491,9 @@
       loadLatest();
     }
   });
-  els.retryLoadBtn.addEventListener("click", function () { loadLatest(); });
+  els.retryLoadBtn.addEventListener("click", function () {
+    if (state.lastErrorCtx === "save") { saveNow(); } else { loadLatest(); }
+  });
   els.addRowBtn.addEventListener("click", addRow);
   els.pinForm.addEventListener("submit", function (e) {
     e.preventDefault();
