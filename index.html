@@ -405,24 +405,43 @@
     }
     /* Google's Sheets viewer renders at native size and its own touch
        handling swallows pinch gestures, so the grid/text just looks huge
-       on a phone. Render it into an oversized box, then scale that whole
-       box down — the effect is the same as zooming out the table itself,
-       so more columns fit and text reads smaller by default. */
+       on a phone. Render it into an oversized wrapper, then scale that
+       whole wrapper down — the effect is the same as zooming out the
+       table itself, so more columns fit and text reads smaller by
+       default. The transform lives on a plain wrapper div rather than
+       the iframe itself, and both the wrapper and its scroll-clipping
+       ancestor are pinned to their own compositing layer (will-change +
+       backface-visibility + translateZ) — Safari has a known bug where a
+       transformed iframe can be dropped from the paint during a heavy
+       gesture like pinch-zoom and never repainted; giving it a stable
+       layer up front avoids the promote/demote thrashing that triggers it. */
     .schedule-embed .tab-panel {
       position: relative;
       overflow: hidden;
       height: 55vh;
       min-height: 340px;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
     }
-    .schedule-embed .tab-panel iframe {
+    .schedule-embed .tab-panel .iframe-zoom-wrap {
       position: absolute;
       top: 0;
       left: 0;
-      width: 250%;
-      height: 250%;
-      min-height: 0;
-      transform: scale(0.4);
+      width: 200%;
+      height: 200%;
+      transform: scale(0.5);
       transform-origin: 0 0;
+      -webkit-transform: scale(0.5);
+      will-change: transform;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .schedule-embed .tab-panel .iframe-zoom-wrap iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      border: 0;
     }
   }
 
@@ -793,10 +812,14 @@
     </div>
     <div class="sheet schedule-embed">
       <div class="tab-panel" id="refPanel-schedule" role="tabpanel">
-        <iframe src="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/preview" title="長町MS予定表" loading="lazy"></iframe>
+        <div class="iframe-zoom-wrap">
+          <iframe src="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/preview" title="長町MS予定表" loading="lazy"></iframe>
+        </div>
       </div>
       <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
-        <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
+        <div class="iframe-zoom-wrap">
+          <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
+        </div>
       </div>
       <div class="mobile-open-cta">
         <p>もっと大きく・詳しく見たい場合は、Googleドライブアプリ（またはブラウザ）で開けます。</p>
