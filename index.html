@@ -204,6 +204,51 @@
   }
   .dirty-flag.show { display: inline-flex; }
 
+  .menu-wrap { position: relative; }
+  #menuBtn {
+    padding: 8px 12px;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .menu-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 200px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 6px;
+    z-index: 20;
+  }
+  .menu-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: none;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .menu-item:hover { background: var(--surface-alt); }
+  .menu-divider {
+    height: 1px;
+    background: var(--line-soft);
+    margin: 6px 4px;
+  }
+  .menu-version {
+    padding: 6px 10px 4px;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+  }
+
   /* ---------- Banners ---------- */
   .banner {
     border-radius: var(--radius);
@@ -593,8 +638,15 @@
     <span class="sync-pill"><span id="syncDot" class="dot pulse"></span><span id="syncText">未登録</span></span>
     <span class="spacer"></span>
     <span id="dirtyFlag" class="dirty-flag">● 保存中…</span>
-    <button class="btn" id="copyLinkBtn" type="button">🔗 このアプリのアドレスをコピー</button>
-    <button class="btn" id="reloadBtn" type="button">最新を再読み込み</button>
+    <div class="menu-wrap">
+      <button class="btn" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false">⋮</button>
+      <div class="menu-dropdown" id="menuDropdown" role="menu" style="display:none;">
+        <button type="button" class="menu-item" id="copyLinkBtn" role="menuitem">🔗 アドレスをコピー</button>
+        <button type="button" class="menu-item" id="reloadBtn" role="menuitem">🔄 再読み込み</button>
+        <div class="menu-divider"></div>
+        <div class="menu-version">バージョン <span id="appVersion"></span></div>
+      </div>
+    </div>
     </div>
 
   <details class="history" id="historyPanel" style="display:none;">
@@ -667,6 +719,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
+  var APP_VERSION = "1.0.0";
 
   var FISCAL_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -735,7 +788,10 @@
     photoFileInput: document.getElementById("photoFileInput"),
     photoOverlay: document.getElementById("photoOverlay"),
     photoOverlayImg: document.getElementById("photoOverlayImg"),
-    photoOverlayClose: document.getElementById("photoOverlayClose")
+    photoOverlayClose: document.getElementById("photoOverlayClose"),
+    menuBtn: document.getElementById("menuBtn"),
+    menuDropdown: document.getElementById("menuDropdown"),
+    appVersion: document.getElementById("appVersion")
   };
 
   function customConfirm(message, okLabel) {
@@ -793,10 +849,11 @@
     return mm + "/" + dd + " " + hh + ":" + mi;
   }
 
-  function setSync(kind, text) {
+  var SYNC_LABELS = { loading: "更新中", ok: "最新", warn: "未登録", err: "エラー" };
+  function setSync(kind) {
     els.syncDot.className = "dot" + (kind === "loading" ? " pulse" : "") +
       (kind === "ok" ? " ok" : kind === "warn" ? " warn" : kind === "err" ? " err" : "");
-    els.syncText.textContent = text;
+    els.syncText.textContent = SYNC_LABELS[kind] || "";
   }
 
   var autoSaveTimer = null;
@@ -1092,11 +1149,11 @@
 
   function loadVersion(revision, isLatest) {
     function doLoad() {
-      setSync("loading", "読み込み中…");
+      setSync("loading");
       callBackend("loadRevision", { fileId: state.fileId, revisionId: revision.id })
         .then(function (res) {
           applyLoadedPayload(res.content, res.content.savedAt || revision.modifiedTime);
-          setSync("ok", (isLatest ? "最新版を表示中 · " : fmtWhen(revision.modifiedTime) + " 時点の版を表示中 · ") + "保存: " + (state.lastSavedAt ? fmtWhen(state.lastSavedAt) : "-"));
+          setSync("ok");
         })
         .catch(function (err) { handleApiError(err, "load"); });
     }
@@ -1129,7 +1186,7 @@
     if (!unlocked) {
       hideAllBanners();
       els.pinBanner.classList.add("show");
-      setSync("warn", "未登録");
+      setSync("warn");
       els.historyPanel.style.display = "none";
     }
   }
@@ -1161,7 +1218,7 @@
     var submitBtn = document.getElementById("pinSubmitBtn");
     if (submitBtn) submitBtn.disabled = true;
     state.pin = pin;
-    setSync("loading", "確認中…");
+    setSync("loading");
     return loadLatest(true).then(function () {
       storePin(pin);
       setUnlockedUi(true);
@@ -1169,7 +1226,7 @@
       state.pin = null;
       if (err && err.invalidPin) {
         els.pinError.style.display = "";
-        setSync("warn", "未登録");
+        setSync("warn");
       } else {
         handleApiError(err, "load");
       }
@@ -1189,7 +1246,7 @@
     } else {
       els.errorBannerMsg.textContent = (err && err.message) ? err.message : "しばらくしてからもう一度お試しください。";
       els.errorBanner.classList.add("show");
-      setSync("err", ctx === "save" ? "保存に失敗しました" : "読み込みに失敗しました");
+      setSync("err");
     }
     if (ctx === "save") {
       state.saving = false;
@@ -1203,7 +1260,7 @@
       return Promise.resolve();
     }
     hideAllBanners();
-    setSync("loading", "読み込み中…");
+    setSync("loading");
 
     return callBackend("load")
       .then(function (res) {
@@ -1216,12 +1273,12 @@
           hideAllBanners();
           els.freshBanner.classList.add("show");
           els.historyPanel.style.display = "none";
-          setSync("ok", "保存データなし（初回入力待ち）");
+          setSync("ok");
           return;
         }
         state.fileId = res.fileId;
         applyLoadedPayload(res.content, res.content.savedAt || res.modifiedTime);
-        setSync("ok", "最新版を読み込みました · 保存: " + (state.lastSavedAt ? fmtWhen(state.lastSavedAt) : "-"));
+        setSync("ok");
         renderHistory(res.revisions || []);
       })
       .catch(function (err) {
@@ -1233,7 +1290,7 @@
   function saveNow() {
     if (!state.pin || state.saving) return;
     state.saving = true;
-    setSync("loading", "保存中…");
+    setSync("loading");
 
     var payload = {
       version: 3,
@@ -1246,12 +1303,13 @@
       state.fileId = res.fileId;
       state.lastSavedAt = payload.savedAt;
       setDirty(false);
-      setSync("ok", "保存しました · " + fmtWhen(payload.savedAt));
+      setSync("ok");
       callBackend("load").then(function (r) { renderHistory(r.revisions || []); }).catch(function () {});
     }).catch(function (err) { handleApiError(err, "save"); });
   }
 
   els.reloadBtn.addEventListener("click", function () {
+    closeMenu();
     if (state.dirty) {
       customConfirm("未保存の変更は失われます。よろしいですか？", "再読み込み").then(function (ok) {
         if (ok) loadLatest();
@@ -1313,6 +1371,7 @@
   }
 
   els.copyLinkBtn.addEventListener("click", function () {
+    closeMenu();
     var url = location.origin + location.pathname;
     function ok() { showToast("アドレスをコピーしました"); }
     function fail() { showToast("コピーできませんでした。アドレスバーから手動でコピーしてください。"); }
@@ -1323,11 +1382,32 @@
     }
   });
 
+  function closeMenu() {
+    els.menuDropdown.style.display = "none";
+    els.menuBtn.setAttribute("aria-expanded", "false");
+  }
+  function toggleMenu() {
+    var open = els.menuDropdown.style.display !== "none";
+    els.menuDropdown.style.display = open ? "none" : "block";
+    els.menuBtn.setAttribute("aria-expanded", open ? "false" : "true");
+  }
+  els.menuBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    toggleMenu();
+  });
+  document.addEventListener("click", function (e) {
+    if (!els.menuDropdown.contains(e.target) && e.target !== els.menuBtn) closeMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeMenu();
+  });
+  els.appVersion.textContent = APP_VERSION;
+
   render();
   var storedPin = loadStoredPin();
   if (storedPin) {
     state.pin = storedPin;
-    setSync("loading", "確認中…");
+    setSync("loading");
     loadLatest(true).then(function () {
       setUnlockedUi(true);
     }).catch(function () {
