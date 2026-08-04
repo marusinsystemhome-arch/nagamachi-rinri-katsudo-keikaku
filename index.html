@@ -354,6 +354,34 @@
     box-shadow: var(--shadow);
     overflow: hidden;
   }
+
+  /* ---------- Read-only embedded sections (e.g. MS schedule) ---------- */
+  .section-block { margin-bottom: 22px; }
+  .section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .section-header h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .section-sub {
+    margin: 0 0 12px;
+    font-size: 12.5px;
+    color: var(--ink-muted);
+  }
+  .schedule-embed iframe {
+    display: block;
+    width: 100%;
+    height: 70vh;
+    min-height: 420px;
+    border: 0;
+  }
   .table-scroll { overflow-x: auto; }
   table.plan {
     width: 100%;
@@ -685,6 +713,17 @@
     </div>
   </div>
 
+  <section class="section-block">
+    <div class="section-header">
+      <h2>長町MS予定表（閲覧のみ）</h2>
+      <a class="btn" href="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/edit" target="_blank" rel="noopener noreferrer">Googleドライブで開く</a>
+    </div>
+    <p class="section-sub">活動計画とは別のGoogleスプレッドシートです。ここでは閲覧のみで、この画面から編集はできません。</p>
+    <div class="sheet schedule-embed">
+      <iframe src="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/preview" title="長町MS予定表" loading="lazy"></iframe>
+    </div>
+  </section>
+
   <footer class="note">
     <p>出典: 「令和9年度 活動計画 三役擦り合わせシート」の②各イベント一覧（役職・担当委員会の記載は本シートでは省略しています）。区分・狙いなど原資料の詳細は原本をご参照ください。</p>
     <p>保存すると Google ドライブ上の同じファイルが更新されます。過去の内容は Google ドライブの版管理機能で保持され、上の「変更履歴」からいつでも見返せます。</p>
@@ -719,7 +758,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.0.0";
+  var APP_VERSION = "1.1.0";
 
   var FISCAL_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8];
 
