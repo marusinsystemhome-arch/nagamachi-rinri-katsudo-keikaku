@@ -386,11 +386,10 @@
 
   .mobile-open-cta { display: none; }
   @media (max-width: 680px) {
-    /* The embedded Sheets viewer is Google's full desktop grid UI — it
-       doesn't reflow for narrow screens and fights the browser's own
-       pinch-zoom with its own touch handling. Below phone width, swap it
-       for a plain link out to Drive's native mobile view instead. */
-    .schedule-embed .tab-panel { display: none !important; }
+    /* The embedded Sheets viewer is Google's full desktop grid UI, so it's
+       cramped on a phone screen — but it's still shown so people can glance
+       at it in place. This card is an optional escape hatch below it for
+       anyone who wants Drive's own full-size mobile view instead. */
     .mobile-open-cta {
       display: flex;
       flex-direction: column;
@@ -779,7 +778,7 @@
         <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
       </div>
       <div class="mobile-open-cta">
-        <p>スマホの画面では表が小さく見づらいため、Googleドライブアプリ（またはブラウザ）で開くことをおすすめします。</p>
+        <p>もっと大きく・詳しく見たい場合は、Googleドライブアプリ（またはブラウザ）で開けます。</p>
         <a class="btn btn-primary" id="mobileOpenLink" href="#" target="_blank" rel="noopener noreferrer">開く</a>
       </div>
     </div>
@@ -819,7 +818,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.1.2";
+  var APP_VERSION = "1.1.3";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
