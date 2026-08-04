@@ -421,14 +421,15 @@
       -webkit-transform: translateZ(0);
     }
     .schedule-embed .tab-panel .iframe-zoom-wrap {
+      --zoom: 0.5;
       position: absolute;
       top: 0;
       left: 0;
-      width: 200%;
-      height: 200%;
-      transform: scale(0.5);
+      width: calc(100% / var(--zoom));
+      height: calc(100% / var(--zoom));
+      transform: scale(var(--zoom));
       transform-origin: 0 0;
-      -webkit-transform: scale(0.5);
+      -webkit-transform: scale(var(--zoom));
       will-change: transform;
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
@@ -441,17 +442,13 @@
       border: 0;
     }
     /* The .xlsx roster's Drive preview (a different renderer from native
-       Sheets) doesn't survive being drawn into the oversized+scaled wrapper
-       at all — it comes out permanently blank rather than just glitching
-       during a gesture. Opt it back out to a plain, unscaled fit instead of
-       chasing that renderer's specific quirks; a cramped-but-visible embed
-       beats a reliably blank one. */
-    .schedule-embed .tab-panel .iframe-zoom-wrap.no-zoom {
-      width: 100%;
-      height: 100%;
-      transform: none;
-      -webkit-transform: none;
-      will-change: auto;
+       Sheets) came out permanently blank at 0.5x — the same oversized+
+       scaled wrapper technique, just less aggressive (0.8x, so a smaller
+       oversized render) so there's less to trip over. Still a mitigation,
+       not a guaranteed fix; if it goes blank again this is the first place
+       to look. */
+    .schedule-embed .tab-panel .iframe-zoom-wrap.zoom-80 {
+      --zoom: 0.8;
     }
   }
 
@@ -826,7 +823,7 @@
         </div>
       </div>
       <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
-        <div class="iframe-zoom-wrap no-zoom">
+        <div class="iframe-zoom-wrap zoom-80">
           <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
         </div>
       </div>
@@ -871,7 +868,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.2.1";
+  var APP_VERSION = "1.2.2";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
