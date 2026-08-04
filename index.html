@@ -382,6 +382,32 @@
     min-height: 420px;
     border: 0;
   }
+  .tab-panel[hidden] { display: none; }
+
+  .tab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .tab-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--surface-alt);
+    color: var(--ink-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 100px;
+    cursor: pointer;
+  }
+  .tab-btn:hover { border-color: var(--ink-faint); }
+  .tab-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
   .table-scroll { overflow-x: auto; }
   table.plan {
     width: 100%;
@@ -715,12 +741,21 @@
 
   <section class="section-block">
     <div class="section-header">
-      <h2>長町MS予定表（閲覧のみ）</h2>
-      <a class="btn" href="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/edit" target="_blank" rel="noopener noreferrer">Googleドライブで開く</a>
+      <h2>参考資料（閲覧のみ）</h2>
+      <a class="btn" id="refDriveLink" href="#" target="_blank" rel="noopener noreferrer">Googleドライブで開く</a>
     </div>
     <p class="section-sub">活動計画とは別のGoogleスプレッドシートです。ここでは閲覧のみで、この画面から編集はできません。</p>
+    <div class="tab-bar" id="refTabBar" role="tablist">
+      <button type="button" class="tab-btn" data-ref="schedule" role="tab" aria-selected="true" aria-controls="refPanel-schedule">長町MS予定表</button>
+      <button type="button" class="tab-btn" data-ref="roster" role="tab" aria-selected="false" aria-controls="refPanel-roster">R8普及拡充リスト</button>
+    </div>
     <div class="sheet schedule-embed">
-      <iframe src="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/preview" title="長町MS予定表" loading="lazy"></iframe>
+      <div class="tab-panel" id="refPanel-schedule" role="tabpanel">
+        <iframe src="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/preview" title="長町MS予定表" loading="lazy"></iframe>
+      </div>
+      <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
+        <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
+      </div>
     </div>
   </section>
 
@@ -759,6 +794,11 @@
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
   var APP_VERSION = "1.1.0";
+
+  var REFERENCE_DOCS = {
+    schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
+    roster: { viewUrl: "https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/view" }
+  };
 
   var FISCAL_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -830,7 +870,9 @@
     photoOverlayClose: document.getElementById("photoOverlayClose"),
     menuBtn: document.getElementById("menuBtn"),
     menuDropdown: document.getElementById("menuDropdown"),
-    appVersion: document.getElementById("appVersion")
+    appVersion: document.getElementById("appVersion"),
+    refTabBar: document.getElementById("refTabBar"),
+    refDriveLink: document.getElementById("refDriveLink")
   };
 
   function customConfirm(message, okLabel) {
@@ -1441,6 +1483,25 @@
     if (e.key === "Escape") closeMenu();
   });
   els.appVersion.textContent = APP_VERSION;
+
+  function switchRefTab(key) {
+    var doc = REFERENCE_DOCS[key];
+    if (!doc) return;
+    Array.prototype.forEach.call(els.refTabBar.querySelectorAll(".tab-btn"), function (btn) {
+      var active = btn.getAttribute("data-ref") === key;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".tab-panel"), function (panel) {
+      panel.hidden = panel.id !== "refPanel-" + key;
+    });
+    els.refDriveLink.href = doc.viewUrl;
+  }
+  els.refTabBar.addEventListener("click", function (e) {
+    var btn = e.target.closest(".tab-btn");
+    if (btn) switchRefTab(btn.getAttribute("data-ref"));
+  });
+  switchRefTab("schedule");
 
   render();
   var storedPin = loadStoredPin();
