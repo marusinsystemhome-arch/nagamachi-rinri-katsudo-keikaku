@@ -403,9 +403,26 @@
       line-height: 1.6;
       color: var(--ink-muted);
     }
-    .schedule-embed iframe {
+    /* Google's Sheets viewer renders at native size and its own touch
+       handling swallows pinch gestures, so the grid/text just looks huge
+       on a phone. Render it into an oversized box, then scale that whole
+       box down — the effect is the same as zooming out the table itself,
+       so more columns fit and text reads smaller by default. */
+    .schedule-embed .tab-panel {
+      position: relative;
+      overflow: hidden;
       height: 42vh;
       min-height: 260px;
+    }
+    .schedule-embed .tab-panel iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 166.6667%;
+      height: 166.6667%;
+      min-height: 0;
+      transform: scale(0.6);
+      transform-origin: 0 0;
     }
   }
 
@@ -822,7 +839,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.1.4";
+  var APP_VERSION = "1.1.5";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
