@@ -15,6 +15,7 @@
  */
 
 var FILE_NAME = "年間活動計画データ_仙台長町倫理法人会.json";
+var FOLDER_NAME = "長町倫理_活動計画データ";
 
 function getPin_() {
   return PropertiesService.getScriptProperties().getProperty("APP_PIN");
@@ -30,9 +31,48 @@ function jsonOutput_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function findFile_() {
-  var it = DriveApp.getFilesByName(FILE_NAME);
-  return it.hasNext() ? it.next() : null;
+function getOrCreateFolder_() {
+  var it = DriveApp.getFoldersByName(FOLDER_NAME);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(FOLDER_NAME);
+}
+
+function isDirectChildOf_(file, folder) {
+  var parents = file.getParents();
+  while (parents.hasNext()) {
+    if (parents.next().getId() === folder.getId()) return true;
+  }
+  return false;
+}
+
+// Moves a file into `folder`, removing it from every other parent it's
+// currently in (a fresh file has no parents to remove; an older file saved
+// before FOLDER_NAME existed is typically sitting loose at the Drive root).
+function moveIntoFolder_(file, folder) {
+  var parents = file.getParents();
+  while (parents.hasNext()) {
+    var parent = parents.next();
+    if (parent.getId() !== folder.getId()) parent.removeFile(file);
+  }
+  folder.addFile(file);
+}
+
+function findFile_(folder) {
+  var inFolder = folder.getFilesByName(FILE_NAME);
+  if (inFolder.hasNext()) return inFolder.next();
+
+  // One-time migration: earlier versions of this script saved the file
+  // wherever DriveApp.getFilesByName() happened to find/create it (usually
+  // the Drive root). Adopt it into the folder instead of starting fresh.
+  var elsewhere = DriveApp.getFilesByName(FILE_NAME);
+  while (elsewhere.hasNext()) {
+    var f = elsewhere.next();
+    if (!isDirectChildOf_(f, folder)) {
+      moveIntoFolder_(f, folder);
+      return f;
+    }
+  }
+  return null;
 }
 
 function listRevisions_(fileId) {
@@ -78,7 +118,7 @@ function doPost(e) {
     }
 
     if (action === "load") {
-      var file = findFile_();
+      var file = findFile_(getOrCreateFolder_());
       if (!file) return jsonOutput_({ ok: true, exists: false });
       var content = JSON.parse(file.getBlob().getDataAsString("UTF-8"));
       return jsonOutput_({
@@ -95,11 +135,12 @@ function doPost(e) {
       var payload = body.payload;
       if (!payload) return jsonOutput_({ ok: false, error: "missing_payload" });
       var text = JSON.stringify(payload);
-      var f = findFile_();
+      var folder = getOrCreateFolder_();
+      var f = findFile_(folder);
       if (f) {
         f.setContent(text);
       } else {
-        f = DriveApp.createFile(FILE_NAME, text, "application/json");
+        f = folder.createFile(FILE_NAME, text, "application/json");
       }
       return jsonOutput_({ ok: true, fileId: f.getId(), modifiedTime: new Date().toISOString() });
     }
