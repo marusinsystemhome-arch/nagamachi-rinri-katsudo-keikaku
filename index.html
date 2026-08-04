@@ -440,6 +440,19 @@
       min-height: 0;
       border: 0;
     }
+    /* The .xlsx roster's Drive preview (a different renderer from native
+       Sheets) doesn't survive being drawn into the oversized+scaled wrapper
+       at all — it comes out permanently blank rather than just glitching
+       during a gesture. Opt it back out to a plain, unscaled fit instead of
+       chasing that renderer's specific quirks; a cramped-but-visible embed
+       beats a reliably blank one. */
+    .schedule-embed .tab-panel .iframe-zoom-wrap.no-zoom {
+      width: 100%;
+      height: 100%;
+      transform: none;
+      -webkit-transform: none;
+      will-change: auto;
+    }
   }
 
   .tab-bar {
@@ -813,7 +826,7 @@
         </div>
       </div>
       <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
-        <div class="iframe-zoom-wrap">
+        <div class="iframe-zoom-wrap no-zoom">
           <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
         </div>
       </div>
