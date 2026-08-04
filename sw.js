@@ -1,4 +1,4 @@
-const CACHE = "nagamachi-rinri-keikaku-v1";
+const CACHE = "nagamachi-rinri-keikaku-v2";
 const CORE = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -17,10 +17,21 @@ self.addEventListener("activate", (event) => {
 
 // Network-first for everything: this app's data comes live from the Drive
 // API, so a stale cached response is worse than a network error. Caching
-// here exists only to satisfy PWA installability, not for offline use.
+// here exists only so a transient network blip (e.g. mid-gesture on
+// mobile) falls back to something recent instead of an error page — every
+// successful fetch refreshes the cache entry, so the fallback never drifts
+// far behind. (Previously the cache was only ever populated once, at
+// install time, so a device that installed this service worker long ago
+// could fall back all the way to a years-old snapshot of the app.)
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request)
+      .then((res) => {
+        var copy = res.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
