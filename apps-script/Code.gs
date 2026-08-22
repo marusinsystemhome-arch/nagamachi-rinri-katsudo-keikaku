@@ -17,6 +17,15 @@
 var FILE_NAME = "年間活動計画データ_仙台長町倫理法人会.json";
 var FOLDER_NAME = "長町倫理_活動計画データ";
 
+// Committee handover documents served through this backend rather than via
+// public Drive sharing — these files stay private (owner-only) on Drive, and
+// are only reachable by someone who already has the app's PIN. Add new
+// entries here as more committees' handover sheets get digitized; do NOT add
+// an endpoint that accepts an arbitrary Drive file id from the client.
+var COMMITTEE_FILES = {
+  asachorei: { fileId: "1r-bNKBWUKa-NIY8KJA3E_DjZ8g3eSeJj", name: "朝礼委員会 引き継ぎシート" }
+};
+
 function getPin_() {
   return PropertiesService.getScriptProperties().getProperty("APP_PIN");
 }
@@ -151,6 +160,20 @@ function doPost(e) {
       if (!fileId || !revisionId) return jsonOutput_({ ok: false, error: "missing_params" });
       var revContent = getRevisionContent_(fileId, revisionId);
       return jsonOutput_({ ok: true, content: revContent });
+    }
+
+    if (action === "getCommitteeFile") {
+      var key = body.key;
+      var entry = COMMITTEE_FILES[key];
+      if (!entry) return jsonOutput_({ ok: false, error: "unknown_file" });
+      var committeeFile = DriveApp.getFileById(entry.fileId);
+      var blob = committeeFile.getBlob();
+      return jsonOutput_({
+        ok: true,
+        name: entry.name,
+        mimeType: blob.getContentType(),
+        data: Utilities.base64Encode(blob.getBytes())
+      });
     }
 
     return jsonOutput_({ ok: false, error: "unknown_action" });

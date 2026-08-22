@@ -372,6 +372,27 @@
     font-size: 12.5px;
     color: var(--ink-muted);
   }
+  .committee-file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .committee-file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface-alt);
+    border-radius: 10px;
+  }
+  .committee-file-name {
+    font-size: 13.5px;
+    font-weight: 700;
+  }
   .schedule-embed iframe {
     display: block;
     width: 100%;
@@ -834,6 +855,19 @@
     </div>
   </section>
 
+  <section class="section-block">
+    <div class="section-header">
+      <h2>委員会の仕事</h2>
+    </div>
+    <p class="section-sub">各委員会の引き継ぎ資料です。Googleドライブ上は非公開のままで、このアプリのPINでログインした人だけが閲覧できます。</p>
+    <ul class="committee-file-list" id="committeeFileList">
+      <li class="committee-file-item">
+        <span class="committee-file-name">朝礼委員会 引き継ぎシート</span>
+        <button type="button" class="btn" data-committee-key="asachorei">表示する</button>
+      </li>
+    </ul>
+  </section>
+
   <footer class="note">
     <p>出典: 「令和9年度 活動計画 三役擦り合わせシート」の②各イベント一覧（役職・担当委員会の記載は本シートでは省略しています）。区分・狙いなど原資料の詳細は原本をご参照ください。</p>
     <p>保存すると Google ドライブ上の同じファイルが更新されます。過去の内容は Google ドライブの版管理機能で保持され、上の「変更履歴」からいつでも見返せます。</p>
@@ -868,7 +902,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.2.2";
+  var APP_VERSION = "1.3.0";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
@@ -949,7 +983,8 @@
     appVersion: document.getElementById("appVersion"),
     refTabBar: document.getElementById("refTabBar"),
     refDriveLink: document.getElementById("refDriveLink"),
-    mobileOpenLink: document.getElementById("mobileOpenLink")
+    mobileOpenLink: document.getElementById("mobileOpenLink"),
+    committeeFileList: document.getElementById("committeeFileList")
   };
 
   function customConfirm(message, okLabel) {
@@ -1603,6 +1638,34 @@
     if (btn) switchRefTab(btn.getAttribute("data-ref"));
   });
   switchRefTab("schedule");
+
+  function viewCommitteeFile(key, btn) {
+    if (!state.pin) { showToast("先にPINでログインしてください"); return; }
+    var originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "読み込み中…";
+    // Open the tab synchronously (inside the click handler) so mobile
+    // Safari doesn't treat the later async navigation as a blocked popup.
+    var win = window.open("", "_blank");
+    callBackend("getCommitteeFile", { key: key }).then(function (res) {
+      var bytes = atob(res.data);
+      var buffer = new Uint8Array(bytes.length);
+      for (var i = 0; i < bytes.length; i++) buffer[i] = bytes.charCodeAt(i);
+      var blob = new Blob([buffer], { type: res.mimeType || "application/pdf" });
+      var url = URL.createObjectURL(blob);
+      if (win) { win.location.href = url; } else { window.open(url, "_blank"); }
+    }).catch(function (err) {
+      if (win) win.close();
+      showToast(err.message || "読み込みに失敗しました");
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
+  }
+  els.committeeFileList.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-committee-key]");
+    if (btn) viewCommitteeFile(btn.getAttribute("data-committee-key"), btn);
+  });
 
   render();
   var storedPin = loadStoredPin();
