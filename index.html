@@ -815,6 +815,7 @@
     <div class="tab-bar" id="refTabBar" role="tablist">
       <button type="button" class="tab-btn" data-ref="schedule" role="tab" aria-selected="true" aria-controls="refPanel-schedule">長町MS予定表</button>
       <button type="button" class="tab-btn" data-ref="roster" role="tab" aria-selected="false" aria-controls="refPanel-roster">R8普及拡充リスト</button>
+      <button type="button" class="tab-btn" data-ref="committee" role="tab" aria-selected="false" aria-controls="refPanel-committee">委員会の仕事</button>
     </div>
     <div class="sheet schedule-embed">
       <div class="tab-panel" id="refPanel-schedule" role="tabpanel">
@@ -825,6 +826,11 @@
       <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
         <div class="iframe-zoom-wrap zoom-80">
           <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
+        </div>
+      </div>
+      <div class="tab-panel" id="refPanel-committee" role="tabpanel" hidden>
+        <div class="iframe-zoom-wrap zoom-80">
+          <iframe src="https://drive.google.com/file/d/1TmTyD9nzc_NwoBRVaaUUbZLox725c5Aa/preview" title="委員会引き継ぎシート" loading="lazy"></iframe>
         </div>
       </div>
       <div class="mobile-open-cta">
@@ -868,11 +874,12 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.2.2";
+  var APP_VERSION = "1.3.0";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
-    roster: { viewUrl: "https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/view" }
+    roster: { viewUrl: "https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/view" },
+    committee: { viewUrl: "https://drive.google.com/file/d/1TmTyD9nzc_NwoBRVaaUUbZLox725c5Aa/view" }
   };
 
   var FISCAL_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8];
