@@ -593,7 +593,11 @@
     outline-offset: 1px;
     border-color: var(--accent);
   }
-  textarea.field { min-height: 44px; font-family: inherit; }
+  /* Height is driven by autosizeTextarea() (JS) rather than manual drag —
+     resize:none avoids fighting the user's drag handle against every
+     input-triggered auto-grow. overflow hidden avoids a flashing scrollbar
+     while the height is being recalculated. */
+  textarea.field { min-height: 44px; font-family: inherit; resize: none; overflow: hidden; }
   input.field.owner { min-width: 100px; }
   input.field.date { min-width: 130px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 
@@ -908,7 +912,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.3.0";
+  var APP_VERSION = "1.3.1";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
@@ -1157,6 +1161,10 @@
       tr.appendChild(tdPhoto);
       tr.appendChild(tdDel);
       els.body.appendChild(tr);
+
+      // scrollHeight only resolves once the row is attached to the DOM, so
+      // this has to happen after appendChild above, not inside makeFieldCell.
+      Array.prototype.forEach.call(tr.querySelectorAll("textarea.field"), autosizeTextarea);
     });
   }
 
@@ -1194,6 +1202,13 @@
     }
   }
 
+  // Textareas grow to fit their content instead of clipping/scrolling it
+  // (must be in the DOM already — scrollHeight is 0 on detached elements).
+  function autosizeTextarea(el) {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+
   function makeFieldCell(tag, value, label, onChange, extraClass, placeholder) {
     var td = document.createElement("td");
     td.setAttribute("data-label", label);
@@ -1210,6 +1225,7 @@
     el.addEventListener("input", function () {
       onChange(el.value);
       setDirty(true);
+      if (tag === "textarea") autosizeTextarea(el);
       var badgeStatus = el.closest("tr").querySelector(".event-status");
       // status re-render is cheap enough to do on full render only when needed;
       // keep it live by recomputing from the row's current field values.
