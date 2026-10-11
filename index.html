@@ -402,6 +402,14 @@
     transition: opacity .15s;
   }
   .schedule-embed iframe.loading { opacity: .35; }
+  .ref-unsupported-msg {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    background: var(--surface-alt);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
   .tab-panel[hidden] { display: none; }
 
   .mobile-open-cta { display: none; }
@@ -1474,6 +1482,11 @@
           err.invalidPin = true;
           throw err;
         }
+        if (res.error === "preview_unsupported") {
+          var unsupportedErr = new Error("このファイル形式はこの画面でプレビューできません");
+          unsupportedErr.previewUnsupported = true;
+          throw unsupportedErr;
+        }
         throw new Error(res.message || res.error || "不明なエラー");
       }
       return res;
@@ -1715,7 +1728,17 @@
       refDocBlobUrls[key] = url;
       frame.src = url;
     }).catch(function (err) {
-      showToast(err.message || "資料の読み込みに失敗しました");
+      if (err.previewUnsupported) {
+        var panel = frame.closest(".tab-panel");
+        if (panel && !panel.querySelector(".ref-unsupported-msg")) {
+          var msg = document.createElement("p");
+          msg.className = "ref-unsupported-msg";
+          msg.textContent = "このファイルはこの画面ではプレビューできません。上の「Googleドライブで開く」から開いてください。";
+          panel.insertBefore(msg, panel.firstChild);
+        }
+      } else {
+        showToast(err.message || "資料の読み込みに失敗しました");
+      }
     }).then(function () {
       frame.classList.remove("loading");
     });

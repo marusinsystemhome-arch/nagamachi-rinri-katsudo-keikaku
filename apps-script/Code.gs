@@ -149,11 +149,19 @@ function doPost(e) {
       var refBlob;
       try {
         // ネイティブのGoogleスプレッドシート/ドキュメントはgetBlob()できないため
-        // PDFとしてエクスポートする(毎回最新の内容が取れる)。既にPDFの場合や
-        // 変換できない形式の場合は元のBlobをそのまま返す。
+        // PDFとしてエクスポートする(毎回最新の内容が取れる)。既にPDFの場合は
+        // そのまま返る。
         refBlob = refFile.getAs(MimeType.PDF);
       } catch (convErr) {
-        refBlob = refFile.getBlob();
+        try {
+          // PDF変換できない形式(例: .xlsxのままアップロードされたファイルは
+          // Apps ScriptからPDFエクスポートできないことがある)は元のBlobを返す。
+          refBlob = refFile.getBlob();
+        } catch (blobErr) {
+          // 両方失敗した場合はこの資料だけ「プレビュー不可」として明示的に返す。
+          // クライアント側は既存の「Googleドライブで開く」リンクに誘導できる。
+          return jsonOutput_({ ok: false, error: "preview_unsupported", name: refEntry.name });
+        }
       }
       return jsonOutput_({
         ok: true,
