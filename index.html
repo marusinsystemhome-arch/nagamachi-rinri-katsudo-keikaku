@@ -399,7 +399,9 @@
     height: 70vh;
     min-height: 420px;
     border: 0;
+    transition: opacity .15s;
   }
+  .schedule-embed iframe.loading { opacity: .35; }
   .tab-panel[hidden] { display: none; }
 
   .mobile-open-cta { display: none; }
@@ -726,6 +728,19 @@
     background: var(--surface);
   }
 
+  .pdf-overlay .pdf-lightbox {
+    width: min(94vw, 900px);
+    height: 88vh;
+  }
+  .pdf-lightbox iframe {
+    flex: 1;
+    width: 100%;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
   .toast {
     position: fixed;
     left: 50%;
@@ -845,17 +860,17 @@
     <div class="sheet schedule-embed">
       <div class="tab-panel" id="refPanel-schedule" role="tabpanel">
         <div class="iframe-zoom-wrap">
-          <iframe src="https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/preview" title="長町MS予定表" loading="lazy"></iframe>
+          <iframe title="長町MS予定表"></iframe>
         </div>
       </div>
       <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
         <div class="iframe-zoom-wrap zoom-80">
-          <iframe src="https://drive.google.com/file/d/1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR/preview" title="長町R8普及拡充リスト" loading="lazy"></iframe>
+          <iframe title="長町R8普及拡充リスト"></iframe>
         </div>
       </div>
       <div class="tab-panel" id="refPanel-committee" role="tabpanel" hidden>
         <div class="iframe-zoom-wrap zoom-80">
-          <iframe src="https://drive.google.com/file/d/1TmTyD9nzc_NwoBRVaaUUbZLox725c5Aa/preview" title="委員会引き継ぎシート" loading="lazy"></iframe>
+          <iframe title="委員会引き継ぎシート"></iframe>
         </div>
       </div>
       <div class="mobile-open-cta">
@@ -902,6 +917,13 @@
   </div>
 </div>
 
+<div id="pdfOverlay" class="confirm-overlay photo-overlay pdf-overlay" style="display:none;">
+  <div class="photo-lightbox pdf-lightbox">
+    <iframe id="pdfOverlayFrame" title="資料プレビュー"></iframe>
+    <button type="button" id="pdfOverlayClose" class="btn photo-lightbox-close">閉じる</button>
+  </div>
+</div>
+
 <input type="file" id="photoFileInput" accept="image/*" class="sr-only" tabindex="-1">
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -912,7 +934,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.3.1";
+  var APP_VERSION = "1.4.0";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
@@ -995,7 +1017,10 @@
     refTabBar: document.getElementById("refTabBar"),
     refDriveLink: document.getElementById("refDriveLink"),
     mobileOpenLink: document.getElementById("mobileOpenLink"),
-    committeeFileList: document.getElementById("committeeFileList")
+    committeeFileList: document.getElementById("committeeFileList"),
+    pdfOverlay: document.getElementById("pdfOverlay"),
+    pdfOverlayFrame: document.getElementById("pdfOverlayFrame"),
+    pdfOverlayClose: document.getElementById("pdfOverlayClose")
   };
 
   function customConfirm(message, okLabel) {
@@ -1308,6 +1333,19 @@
     els.photoOverlayImg.src = "";
   }
 
+  // PDF資料(参考資料タブ・委員会の仕事)を同じページ内に全画面表示する。
+  // 以前はwindow.open()で新規タブを開いてからBlob URLを流し込んでいたが、
+  // iOS SafariはBlob URLを作成元のタブ以外で解決できず空白になるため
+  // (MSメモアプリで実際に起きた不具合と同じ原因)、新規タブは使わない。
+  function openPdfOverlay(src) {
+    els.pdfOverlayFrame.src = src;
+    els.pdfOverlay.style.display = "flex";
+  }
+  function closePdfOverlay() {
+    els.pdfOverlay.style.display = "none";
+    els.pdfOverlayFrame.src = "";
+  }
+
   // Downscale/compress on-device before embedding as a data URL, so a
   // few phone photos per event don't blow up the single JSON file saved to the backend.
   function resizeImageFile(file, maxDim, quality) {
@@ -1588,8 +1626,14 @@
   els.photoOverlay.addEventListener("click", function (e) {
     if (e.target === els.photoOverlay) closePhotoLightbox();
   });
+  els.pdfOverlayClose.addEventListener("click", closePdfOverlay);
+  els.pdfOverlay.addEventListener("click", function (e) {
+    if (e.target === els.pdfOverlay) closePdfOverlay();
+  });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && els.photoOverlay.style.display !== "none") closePhotoLightbox();
+    if (e.key !== "Escape") return;
+    if (els.photoOverlay.style.display !== "none") closePhotoLightbox();
+    if (els.pdfOverlay.style.display !== "none") closePdfOverlay();
   });
 
   function legacyCopy(text) {
@@ -1642,6 +1686,41 @@
   });
   els.appVersion.textContent = APP_VERSION;
 
+  // Base64をBlobに変換するのにatob()+1文字ずつのループを使うと、対象が
+  // 大きいファイルの場合メインスレッドが長時間固まることがあるため、
+  // ブラウザ内蔵のdata URLデコーダーを使う(MSメモアプリで実際に録音ファイルが
+  // 固まった不具合と同じ原因)。
+  function base64ToBlobUrl(base64, mimeType) {
+    var dataUrl = "data:" + (mimeType || "application/pdf") + ";base64," + base64;
+    return fetch(dataUrl).then(function (r) { return r.blob(); }).then(function (blob) {
+      return URL.createObjectURL(blob);
+    });
+  }
+
+  var refDocBlobUrls = {}; // key -> blob URL、タブ切替のたびに取り直さないようキャッシュ
+  var refDocFrames = {
+    schedule: document.querySelector("#refPanel-schedule iframe"),
+    roster: document.querySelector("#refPanel-roster iframe"),
+    committee: document.querySelector("#refPanel-committee iframe")
+  };
+
+  function loadRefDocIfNeeded(key) {
+    if (refDocBlobUrls[key]) return;
+    var frame = refDocFrames[key];
+    if (!frame) return;
+    frame.classList.add("loading");
+    callBackend("getReferenceFile", { key: key }).then(function (res) {
+      return base64ToBlobUrl(res.data, res.mimeType);
+    }).then(function (url) {
+      refDocBlobUrls[key] = url;
+      frame.src = url;
+    }).catch(function (err) {
+      showToast(err.message || "資料の読み込みに失敗しました");
+    }).then(function () {
+      frame.classList.remove("loading");
+    });
+  }
+
   function switchRefTab(key) {
     var doc = REFERENCE_DOCS[key];
     if (!doc) return;
@@ -1655,6 +1734,7 @@
     });
     els.refDriveLink.href = doc.viewUrl;
     els.mobileOpenLink.href = doc.viewUrl;
+    loadRefDocIfNeeded(key);
   }
   els.refTabBar.addEventListener("click", function (e) {
     var btn = e.target.closest(".tab-btn");
@@ -1667,18 +1747,11 @@
     var originalLabel = btn.textContent;
     btn.disabled = true;
     btn.textContent = "読み込み中…";
-    // Open the tab synchronously (inside the click handler) so mobile
-    // Safari doesn't treat the later async navigation as a blocked popup.
-    var win = window.open("", "_blank");
     callBackend("getCommitteeFile", { key: key }).then(function (res) {
-      var bytes = atob(res.data);
-      var buffer = new Uint8Array(bytes.length);
-      for (var i = 0; i < bytes.length; i++) buffer[i] = bytes.charCodeAt(i);
-      var blob = new Blob([buffer], { type: res.mimeType || "application/pdf" });
-      var url = URL.createObjectURL(blob);
-      if (win) { win.location.href = url; } else { window.open(url, "_blank"); }
+      return base64ToBlobUrl(res.data, res.mimeType);
+    }).then(function (url) {
+      openPdfOverlay(url);
     }).catch(function (err) {
-      if (win) win.close();
       showToast(err.message || "読み込みに失敗しました");
     }).then(function () {
       btn.disabled = false;
