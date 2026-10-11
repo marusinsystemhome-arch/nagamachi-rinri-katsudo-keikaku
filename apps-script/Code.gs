@@ -158,17 +158,24 @@ function doPost(e) {
           // Apps ScriptからPDFエクスポートできないことがある)は元のBlobを返す。
           refBlob = refFile.getBlob();
         } catch (blobErr) {
-          // 両方失敗した場合はこの資料だけ「プレビュー不可」として明示的に返す。
-          // クライアント側は既存の「Googleドライブで開く」リンクに誘導できる。
           return jsonOutput_({ ok: false, error: "preview_unsupported", name: refEntry.name });
         }
       }
-      return jsonOutput_({
-        ok: true,
-        name: refEntry.name,
-        mimeType: refBlob.getContentType(),
-        data: Utilities.base64Encode(refBlob.getBytes())
-      });
+      // getBlob()自体は例外を投げずに成功することがあっても、返ってきたBlobから
+      // 実際にバイト列を取り出す(getBytes())段になって変換エラーが起きることが
+      // 分かったため、この取り出し処理もtry/catchで保護する。
+      try {
+        return jsonOutput_({
+          ok: true,
+          name: refEntry.name,
+          mimeType: refBlob.getContentType(),
+          data: Utilities.base64Encode(refBlob.getBytes())
+        });
+      } catch (readErr) {
+        // 両方失敗した場合はこの資料だけ「プレビュー不可」として明示的に返す。
+        // クライアント側は既存の「Googleドライブで開く」リンクに誘導できる。
+        return jsonOutput_({ ok: false, error: "preview_unsupported", name: refEntry.name });
+      }
     }
 
     if (!checkPin_(pin)) {
