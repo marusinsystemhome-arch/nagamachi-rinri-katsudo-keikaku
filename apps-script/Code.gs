@@ -26,6 +26,19 @@ var COMMITTEE_FILES = {
   asachorei: { fileId: "1r-bNKBWUKa-NIY8KJA3E_DjZ8g3eSeJj", name: "朝礼委員会 引き継ぎシート" }
 };
 
+// 「参考資料（閲覧のみ）」タブの埋め込み元。以前はクライアント側で
+// docs.google.com/drive.google.comのプレビューiframeを直接埋め込んでいたが、
+// これは閲覧者自身のGoogleログインセッションに依存しており、Cookie状態次第で
+// 「Googleアカウントにアクセスできません」となり表示できなくなっていた
+// (このファイル群は「リンクを知っている全員」の公開共有ではなく、個別アカウント
+// にのみ共有されているため)。COMMITTEE_FILESと同じ理由・同じ仕組みで、
+// このスクリプトの実行アカウント経由でbase64取得する方式に統一する。
+var REFERENCE_FILES = {
+  schedule: { fileId: "1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY", name: "長町MS予定表" },
+  roster: { fileId: "1YSOjTMw4JwTbjJtjJXWWIzBxSh9GJWJR", name: "長町R8普及拡充リスト" },
+  committee: { fileId: "1TmTyD9nzc_NwoBRVaaUUbZLox725c5Aa", name: "委員会引き継ぎシート統一版" }
+};
+
 function getPin_() {
   return PropertiesService.getScriptProperties().getProperty("APP_PIN");
 }
@@ -121,6 +134,34 @@ function doPost(e) {
     }
     var pin = body.pin;
     var action = body.action;
+
+    // getReferenceFile is intentionally NOT behind the PIN check: the
+    // 「参考資料」tab it backs was already visible to anyone before this PIN
+    // app existed (plain client-side Google iframe embeds), so moving it
+    // behind this backend must not newly require a PIN. Unlike
+    // COMMITTEE_FILES (always PIN-gated), REFERENCE_FILES should stay
+    // reachable with no PIN.
+    if (action === "getReferenceFile") {
+      var refKey = body.key;
+      var refEntry = REFERENCE_FILES[refKey];
+      if (!refEntry) return jsonOutput_({ ok: false, error: "unknown_file" });
+      var refFile = DriveApp.getFileById(refEntry.fileId);
+      var refBlob;
+      try {
+        // ネイティブのGoogleスプレッドシート/ドキュメントはgetBlob()できないため
+        // PDFとしてエクスポートする(毎回最新の内容が取れる)。既にPDFの場合や
+        // 変換できない形式の場合は元のBlobをそのまま返す。
+        refBlob = refFile.getAs(MimeType.PDF);
+      } catch (convErr) {
+        refBlob = refFile.getBlob();
+      }
+      return jsonOutput_({
+        ok: true,
+        name: refEntry.name,
+        mimeType: refBlob.getContentType(),
+        data: Utilities.base64Encode(refBlob.getBytes())
+      });
+    }
 
     if (!checkPin_(pin)) {
       return jsonOutput_({ ok: false, error: "invalid_pin" });
