@@ -431,56 +431,17 @@
       line-height: 1.6;
       color: var(--ink-muted);
     }
-    /* Google's Sheets viewer renders at native size and its own touch
-       handling swallows pinch gestures, so the grid/text just looks huge
-       on a phone. Render it into an oversized wrapper, then scale that
-       whole wrapper down — the effect is the same as zooming out the
-       table itself, so more columns fit and text reads smaller by
-       default. The transform lives on a plain wrapper div rather than
-       the iframe itself, and both the wrapper and its scroll-clipping
-       ancestor are pinned to their own compositing layer (will-change +
-       backface-visibility + translateZ) — Safari has a known bug where a
-       transformed iframe can be dropped from the paint during a heavy
-       gesture like pinch-zoom and never repainted; giving it a stable
-       layer up front avoids the promote/demote thrashing that triggers it. */
-    .schedule-embed .tab-panel {
-      position: relative;
-      overflow: hidden;
-      height: 55vh;
-      min-height: 340px;
-      transform: translateZ(0);
-      -webkit-transform: translateZ(0);
-    }
-    .schedule-embed .tab-panel .iframe-zoom-wrap {
-      --zoom: 0.5;
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: calc(100% / var(--zoom));
-      height: calc(100% / var(--zoom));
-      transform: scale(var(--zoom));
-      transform-origin: 0 0;
-      -webkit-transform: scale(var(--zoom));
-      will-change: transform;
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
-    }
-    .schedule-embed .tab-panel .iframe-zoom-wrap iframe {
-      display: block;
-      width: 100%;
-      height: 100%;
-      min-height: 0;
-      border: 0;
-    }
-    /* The .xlsx roster's Drive preview (a different renderer from native
-       Sheets) came out permanently blank at 0.5x — the same oversized+
-       scaled wrapper technique, just less aggressive (0.8x, so a smaller
-       oversized render) so there's less to trip over. Still a mitigation,
-       not a guaranteed fix; if it goes blank again this is the first place
-       to look. */
-    .schedule-embed .tab-panel .iframe-zoom-wrap.zoom-80 {
-      --zoom: 0.8;
-    }
+    /* かつてはここでGoogleのSheetsプレビューウィジェットを「実寸の2倍で
+       描画してから0.5倍に縮小表示する」というCSSトリックで表示していた
+       (ウィジェット自身のタッチ処理がピンチジェスチャーを横取りしてしまい、
+       素のままだと文字が大きすぎたため)。現在はこの参考資料タブの中身は
+       すべてネイティブPDFの埋め込み表示(iframeへのPDF blob URL直指定)に
+       置き換わっており、ブラウザ標準のPDFビューアが自前でスクロール・
+       ピンチズームを処理する。このoverflow:hidden + transform:scaleの
+       組み合わせは、ネイティブPDFビューア側のタッチスクロールと衝突し、
+       縦スクロールが一切効かなくなる不具合を引き起こしていた
+       (2026-10実機報告)。ネイティブPDFにはこのトリックは不要かつ有害
+       なので撤去し、iframeは素のまま(デスクトップと同じCSS)で表示する。 */
   }
 
   .tab-bar {
@@ -867,19 +828,13 @@
     </div>
     <div class="sheet schedule-embed">
       <div class="tab-panel" id="refPanel-schedule" role="tabpanel">
-        <div class="iframe-zoom-wrap">
-          <iframe title="長町MS予定表"></iframe>
-        </div>
+        <iframe title="長町MS予定表"></iframe>
       </div>
       <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
-        <div class="iframe-zoom-wrap zoom-80">
-          <iframe title="長町R8普及拡充リスト"></iframe>
-        </div>
+        <iframe title="長町R8普及拡充リスト"></iframe>
       </div>
       <div class="tab-panel" id="refPanel-committee" role="tabpanel" hidden>
-        <div class="iframe-zoom-wrap zoom-80">
-          <iframe title="委員会引き継ぎシート"></iframe>
-        </div>
+        <iframe title="委員会引き継ぎシート"></iframe>
       </div>
       <div class="mobile-open-cta">
         <p>もっと大きく・詳しく見たい場合は、Googleドライブアプリ（またはブラウザ）で開けます。</p>
@@ -942,7 +897,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.4.1";
+  var APP_VERSION = "1.4.2";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
