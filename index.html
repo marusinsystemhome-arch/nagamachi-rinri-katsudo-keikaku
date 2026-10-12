@@ -942,7 +942,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.4.0";
+  var APP_VERSION = "1.4.1";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
@@ -1717,12 +1717,31 @@
     committee: document.querySelector("#refPanel-committee iframe")
   };
 
+  // このアプリ内のiframeに埋め込んだPDFは、iOS SafariではPDF部分を
+  // 縦スクロールできないことがある(iframe内の埋め込みPDFがタッチスクロール
+  // に対応しない既知の制限)。そのため「開く」ボタンは、Googleの元URL(閲覧者
+  // 自身のログインが必要で失敗しうる)ではなく、既に取得済みのPDFをdata:URIで
+  // 新しいタブに開く形にする。新しいタブでdata:URIへ直接遷移させれば、
+  // SafariそのもののPDFビューアが開き、スクロール・ピンチズームとも問題なく
+  // 使える(blob:URIと違い、新しいタブでも中身を解決できる)。
+  var refDocDataUrls = {};
+  function updateRefOpenLinks(key) {
+    var url = refDocDataUrls[key] || (REFERENCE_DOCS[key] && REFERENCE_DOCS[key].viewUrl);
+    if (!url) return;
+    els.refDriveLink.href = url;
+    els.mobileOpenLink.href = url;
+  }
+
   function loadRefDocIfNeeded(key) {
     if (refDocBlobUrls[key]) return;
     var frame = refDocFrames[key];
     if (!frame) return;
     frame.classList.add("loading");
     callBackend("getReferenceFile", { key: key }).then(function (res) {
+      refDocDataUrls[key] = "data:" + (res.mimeType || "application/pdf") + ";base64," + res.data;
+      if (document.querySelector('.tab-btn[data-ref="' + key + '"]').classList.contains("active")) {
+        updateRefOpenLinks(key);
+      }
       return base64ToBlobUrl(res.data, res.mimeType);
     }).then(function (url) {
       refDocBlobUrls[key] = url;
@@ -1755,8 +1774,7 @@
     Array.prototype.forEach.call(document.querySelectorAll(".tab-panel"), function (panel) {
       panel.hidden = panel.id !== "refPanel-" + key;
     });
-    els.refDriveLink.href = doc.viewUrl;
-    els.mobileOpenLink.href = doc.viewUrl;
+    updateRefOpenLinks(key);
     loadRefDocIfNeeded(key);
   }
   els.refTabBar.addEventListener("click", function (e) {
