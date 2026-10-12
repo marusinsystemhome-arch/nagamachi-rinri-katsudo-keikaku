@@ -148,10 +148,28 @@ function doPost(e) {
       var refFile = DriveApp.getFileById(refEntry.fileId);
       var refBlob;
       try {
-        // ネイティブのGoogleスプレッドシート/ドキュメントはgetBlob()できないため
-        // PDFとしてエクスポートする(毎回最新の内容が取れる)。既にPDFの場合は
-        // そのまま返る。
-        refBlob = refFile.getAs(MimeType.PDF);
+        if (refFile.getMimeType() === MimeType.GOOGLE_SHEETS) {
+          // getAs(PDF)の既定設定(用紙に収まるよう自動縮小)だと、1ページに
+          // 複数か月分の表が詰め込まれてスマホでは文字が小さすぎて読めなく
+          // なっていた。横向き・大判(tabloid)・等倍(縮小なし)で書き出すと
+          // 1ページあたりの情報量が適度になり、スマホでも読める大きさになる
+          // ことを確認済み。等倍のため列が収まりきらない場合は複数ページに
+          // 分割されるが、文字が小さすぎるよりはページを移動する方がまし。
+          var exportUrl = "https://docs.google.com/spreadsheets/d/" + refEntry.fileId +
+            "/export?format=pdf&portrait=false&size=tabloid&scale=1&gridlines=true&fitw=false";
+          var exportRes = UrlFetchApp.fetch(exportUrl, {
+            headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+            muteHttpExceptions: true
+          });
+          if (exportRes.getResponseCode() !== 200) {
+            throw new Error("sheet export failed: " + exportRes.getResponseCode());
+          }
+          refBlob = exportRes.getBlob();
+        } else {
+          // ネイティブのGoogleドキュメント類はgetBlob()できないためPDFとして
+          // エクスポートする。既にPDFの場合はそのまま返る。
+          refBlob = refFile.getAs(MimeType.PDF);
+        }
       } catch (convErr) {
         try {
           // PDF変換できない形式(例: .xlsxのままアップロードされたファイルは
