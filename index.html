@@ -897,7 +897,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.4.2";
+  var APP_VERSION = "1.4.3";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
@@ -1675,17 +1675,50 @@
   // このアプリ内のiframeに埋め込んだPDFは、iOS SafariではPDF部分を
   // 縦スクロールできないことがある(iframe内の埋め込みPDFがタッチスクロール
   // に対応しない既知の制限)。そのため「開く」ボタンは、Googleの元URL(閲覧者
-  // 自身のログインが必要で失敗しうる)ではなく、既に取得済みのPDFをdata:URIで
-  // 新しいタブに開く形にする。新しいタブでdata:URIへ直接遷移させれば、
-  // SafariそのもののPDFビューアが開き、スクロール・ピンチズームとも問題なく
-  // 使える(blob:URIと違い、新しいタブでも中身を解決できる)。
-  var refDocDataUrls = {};
+  // 自身のログインが必要で失敗しうる)ではなく、既に取得済みのPDFを新しい
+  // タブに開く形にする。
+  // data:URI(本文全体をURLに埋め込む方式)を試したが、iOS Safariでは
+  // 新規タブが真っ白のまま開かず失敗した(実機報告2026-10)。代わりに、
+  // window.open()で先に空のタブを同期的に開いておき、そのタブ自身の
+  // URLオブジェクト(win.URL.createObjectURL)でBlob URLを作る方式にする。
+  // Blob URLは「作成に使ったdocumentの中でしか解決できない」という制約が
+  // あるため、作成元(このページ)のURLをそのまま新規タブへ渡すと
+  // (以前の委員会ファイル表示で実際に起きたように)空白になる。
+  // 新規タブ自身のURLオブジェクトで作れば、そのタブの中で解決できる。
+  var refDocRaw = {}; // key -> { data: base64, mimeType }
+  function refDocFallbackUrl(key) {
+    var raw = refDocRaw[key];
+    if (raw) return "data:" + (raw.mimeType || "application/pdf") + ";base64," + raw.data;
+    return REFERENCE_DOCS[key] && REFERENCE_DOCS[key].viewUrl;
+  }
   function updateRefOpenLinks(key) {
-    var url = refDocDataUrls[key] || (REFERENCE_DOCS[key] && REFERENCE_DOCS[key].viewUrl);
+    var url = refDocFallbackUrl(key);
     if (!url) return;
     els.refDriveLink.href = url;
     els.mobileOpenLink.href = url;
   }
+  function openRefDocInNewTab(key, e) {
+    var raw = refDocRaw[key];
+    if (!raw) return; // 未取得ならhrefのフォールバック(data:URIかGoogleの元URL)に任せる
+    if (e) e.preventDefault();
+    var win = window.open("", "_blank");
+    if (!win) return; // ポップアップブロック時はhrefのフォールバックへの通常遷移に任せる
+    try {
+      var binary = atob(raw.data);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      var blob = new Blob([bytes], { type: raw.mimeType || "application/pdf" });
+      win.location.href = win.URL.createObjectURL(blob);
+    } catch (err) {
+      win.location.href = refDocFallbackUrl(key);
+    }
+  }
+  function currentRefKey() {
+    var btn = els.refTabBar.querySelector(".tab-btn.active");
+    return btn ? btn.getAttribute("data-ref") : null;
+  }
+  els.refDriveLink.addEventListener("click", function (e) { openRefDocInNewTab(currentRefKey(), e); });
+  els.mobileOpenLink.addEventListener("click", function (e) { openRefDocInNewTab(currentRefKey(), e); });
 
   function loadRefDocIfNeeded(key) {
     if (refDocBlobUrls[key]) return;
@@ -1693,7 +1726,7 @@
     if (!frame) return;
     frame.classList.add("loading");
     callBackend("getReferenceFile", { key: key }).then(function (res) {
-      refDocDataUrls[key] = "data:" + (res.mimeType || "application/pdf") + ";base64," + res.data;
+      refDocRaw[key] = { data: res.data, mimeType: res.mimeType };
       if (document.querySelector('.tab-btn[data-ref="' + key + '"]').classList.contains("active")) {
         updateRefOpenLinks(key);
       }
