@@ -393,23 +393,38 @@
     font-size: 13.5px;
     font-weight: 700;
   }
-  .schedule-embed iframe {
-    display: block;
+  /* PDFをiframeに埋め込むとiOS Safariで縦スクロールできないことがある既知の
+     制限があるため、PDF.jsでページごとcanvasに描画しこのdivに並べて表示する。
+     ただのスクロール可能なdivなので、普通のタッチスクロールがそのまま効く。 */
+  .pdf-pages {
     width: 100%;
     height: 70vh;
     min-height: 420px;
-    border: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--surface-alt);
+    padding: 10px;
+    box-sizing: border-box;
     transition: opacity .15s;
   }
-  .schedule-embed iframe.loading { opacity: .35; }
-  .ref-unsupported-msg {
-    margin: 0 0 10px;
-    padding: 10px 12px;
-    background: var(--surface-alt);
-    border-radius: var(--radius);
+  .pdf-pages.loading { opacity: .35; }
+  .pdf-pages-status {
+    margin: 0;
+    padding: 16px 8px;
     font-size: 13px;
     color: var(--ink-muted);
+    text-align: center;
   }
+  .pdf-page-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0 auto 10px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    border-radius: 4px;
+  }
+  .pdf-page-canvas:last-child { margin-bottom: 0; }
   .tab-panel[hidden] { display: none; }
 
   .mobile-open-cta { display: none; }
@@ -434,14 +449,13 @@
     /* かつてはここでGoogleのSheetsプレビューウィジェットを「実寸の2倍で
        描画してから0.5倍に縮小表示する」というCSSトリックで表示していた
        (ウィジェット自身のタッチ処理がピンチジェスチャーを横取りしてしまい、
-       素のままだと文字が大きすぎたため)。現在はこの参考資料タブの中身は
-       すべてネイティブPDFの埋め込み表示(iframeへのPDF blob URL直指定)に
-       置き換わっており、ブラウザ標準のPDFビューアが自前でスクロール・
-       ピンチズームを処理する。このoverflow:hidden + transform:scaleの
-       組み合わせは、ネイティブPDFビューア側のタッチスクロールと衝突し、
-       縦スクロールが一切効かなくなる不具合を引き起こしていた
-       (2026-10実機報告)。ネイティブPDFにはこのトリックは不要かつ有害
-       なので撤去し、iframeは素のまま(デスクトップと同じCSS)で表示する。 */
+       素のままだと文字が大きすぎたため)。その後ネイティブPDFのiframe埋め込み
+       (blob URL直指定)に切り替えたが、今度はiOS SafariがPDFをiframe内で
+       縦スクロールできない既知の制限に当たった(2026-10実機報告、「開く」で
+       新規タブを開けば見られるのに埋め込み側は固まったままだった)。
+       現在はPDF.jsでページをcanvasに描画し、普通にスクロールできるdivに
+       並べる方式(.pdf-pages、本体CSSを参照)に統一しており、iframe自体を
+       使わないためこの種のタッチスクロール不具合が構造的に起きない。 */
   }
 
   .tab-bar {
@@ -701,12 +715,12 @@
     width: min(94vw, 900px);
     height: 88vh;
   }
-  .pdf-lightbox iframe {
+  .pdf-lightbox .pdf-pages {
     flex: 1;
     width: 100%;
-    border: none;
+    height: auto;
+    min-height: 0;
     border-radius: var(--radius);
-    background: var(--surface);
     box-shadow: var(--shadow);
   }
 
@@ -828,13 +842,13 @@
     </div>
     <div class="sheet schedule-embed">
       <div class="tab-panel" id="refPanel-schedule" role="tabpanel">
-        <iframe title="長町MS予定表"></iframe>
+        <div class="pdf-pages" data-ref="schedule" role="img" aria-label="長町MS予定表"></div>
       </div>
       <div class="tab-panel" id="refPanel-roster" role="tabpanel" hidden>
-        <iframe title="長町R8普及拡充リスト"></iframe>
+        <div class="pdf-pages" data-ref="roster" role="img" aria-label="長町R8普及拡充リスト"></div>
       </div>
       <div class="tab-panel" id="refPanel-committee" role="tabpanel" hidden>
-        <iframe title="委員会引き継ぎシート"></iframe>
+        <div class="pdf-pages" data-ref="committee" role="img" aria-label="委員会引き継ぎシート"></div>
       </div>
       <div class="mobile-open-cta">
         <p>もっと大きく・詳しく見たい場合は、Googleドライブアプリ（またはブラウザ）で開けます。</p>
@@ -882,7 +896,7 @@
 
 <div id="pdfOverlay" class="confirm-overlay photo-overlay pdf-overlay" style="display:none;">
   <div class="photo-lightbox pdf-lightbox">
-    <iframe id="pdfOverlayFrame" title="資料プレビュー"></iframe>
+    <div class="pdf-pages" id="pdfOverlayPages" role="img" aria-label="資料プレビュー"></div>
     <button type="button" id="pdfOverlayClose" class="btn photo-lightbox-close">閉じる</button>
   </div>
 </div>
@@ -890,6 +904,16 @@
 <input type="file" id="photoFileInput" accept="image/*" class="sr-only" tabindex="-1">
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<!-- 参考資料PDFの表示に使用。iOS Safariはiframeに埋め込んだPDFを縦スクロール
+     できないことがある既知の制限があるため、PDFをページごとcanvasに描画して
+     普通にスクロールできるdiv内に並べる方式に切り替えた(下のPDFPAGES参照)。 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+</script>
 <script>
 (function () {
   "use strict";
@@ -897,7 +921,7 @@
   var FILE_TITLE = "年間活動計画データ_仙台長町倫理法人会.json";
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwGcrqIQKHwyXBq87O4uXGkjttmv2HIhLB1d6fgZb949uzuJVepAs1c7-MrIDvUy9iwdQ/exec";
   var PIN_STORAGE_KEY = "nagamachi-rinri-keikaku:pin";
-  var APP_VERSION = "1.4.3";
+  var APP_VERSION = "1.4.4";
 
   var REFERENCE_DOCS = {
     schedule: { viewUrl: "https://docs.google.com/spreadsheets/d/1GIPWwSIB3cr30I-sFNsqPln2DbylRnTf4NsX7KlwxEY/view" },
@@ -982,7 +1006,7 @@
     mobileOpenLink: document.getElementById("mobileOpenLink"),
     committeeFileList: document.getElementById("committeeFileList"),
     pdfOverlay: document.getElementById("pdfOverlay"),
-    pdfOverlayFrame: document.getElementById("pdfOverlayFrame"),
+    pdfOverlayPages: document.getElementById("pdfOverlayPages"),
     pdfOverlayClose: document.getElementById("pdfOverlayClose")
   };
 
@@ -1300,13 +1324,13 @@
   // 以前はwindow.open()で新規タブを開いてからBlob URLを流し込んでいたが、
   // iOS SafariはBlob URLを作成元のタブ以外で解決できず空白になるため
   // (MSメモアプリで実際に起きた不具合と同じ原因)、新規タブは使わない。
-  function openPdfOverlay(src) {
-    els.pdfOverlayFrame.src = src;
+  function openPdfOverlay(base64, mimeType) {
     els.pdfOverlay.style.display = "flex";
+    renderPdfIntoContainer(base64, mimeType, els.pdfOverlayPages);
   }
   function closePdfOverlay() {
     els.pdfOverlay.style.display = "none";
-    els.pdfOverlayFrame.src = "";
+    els.pdfOverlayPages.innerHTML = "";
   }
 
   // Downscale/compress on-device before embedding as a data URL, so a
@@ -1654,22 +1678,78 @@
   });
   els.appVersion.textContent = APP_VERSION;
 
-  // Base64をBlobに変換するのにatob()+1文字ずつのループを使うと、対象が
-  // 大きいファイルの場合メインスレッドが長時間固まることがあるため、
-  // ブラウザ内蔵のdata URLデコーダーを使う(MSメモアプリで実際に録音ファイルが
-  // 固まった不具合と同じ原因)。
-  function base64ToBlobUrl(base64, mimeType) {
-    var dataUrl = "data:" + (mimeType || "application/pdf") + ";base64," + base64;
-    return fetch(dataUrl).then(function (r) { return r.blob(); }).then(function (blob) {
-      return URL.createObjectURL(blob);
+  // PDFをcanvasへ1ページずつ描画し、普通にスクロールできるdiv(containerEl)に
+  // 並べて表示する。iframeへのPDF埋め込みはiOS Safariで縦スクロールできない
+  // ことがある既知の制限があるため、このアプリ内のPDF表示はすべてこの方式に
+  // 統一する(タブの「参考資料」と「委員会の仕事」オーバーレイの両方)。
+  // PDF以外(変換できずDrive上の元形式のまま返ってきたファイル)は描画できない
+  // ため、"Googleドライブで開く"に誘導するメッセージを表示する。
+  function renderPdfIntoContainer(base64, mimeType, containerEl) {
+    containerEl.innerHTML = "";
+    if (mimeType !== "application/pdf" || !window.pdfjsLib) {
+      var unsupported = document.createElement("p");
+      unsupported.className = "pdf-pages-status";
+      unsupported.textContent = "このファイルはこの画面ではプレビューできません。上の「Googleドライブで開く」から開いてください。";
+      containerEl.appendChild(unsupported);
+      return;
+    }
+    var status = document.createElement("p");
+    status.className = "pdf-pages-status";
+    status.textContent = "読み込み中…";
+    containerEl.appendChild(status);
+
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    var renderToken = {}; // 連打・タブ切替で前の描画が後から上書きしないようにする目印
+    containerEl._renderToken = renderToken;
+
+    pdfjsLib.getDocument({ data: bytes }).promise.then(function (pdf) {
+      if (containerEl._renderToken !== renderToken) return; // 別の資料に切り替え済み
+      containerEl.innerHTML = "";
+      var pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      var chain = Promise.resolve();
+      var renderPage = function (pageNum) {
+        return pdf.getPage(pageNum).then(function (page) {
+          if (containerEl._renderToken !== renderToken) return;
+          var containerWidth = containerEl.clientWidth - 20 || 300; // padding分を差し引く
+          var baseViewport = page.getViewport({ scale: 1 });
+          var scale = containerWidth / baseViewport.width;
+          var viewport = page.getViewport({ scale: scale });
+          var canvas = document.createElement("canvas");
+          canvas.className = "pdf-page-canvas";
+          canvas.width = Math.floor(viewport.width * pixelRatio);
+          canvas.height = Math.floor(viewport.height * pixelRatio);
+          canvas.style.width = viewport.width + "px";
+          canvas.style.height = viewport.height + "px";
+          var ctx = canvas.getContext("2d");
+          ctx.scale(pixelRatio, pixelRatio);
+          containerEl.appendChild(canvas);
+          return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        });
+      };
+      for (var p = 1; p <= pdf.numPages; p++) {
+        (function (pageNum) {
+          chain = chain.then(function () { return renderPage(pageNum); });
+        })(p);
+      }
+      return chain;
+    }).catch(function () {
+      if (containerEl._renderToken !== renderToken) return;
+      containerEl.innerHTML = "";
+      var errMsg = document.createElement("p");
+      errMsg.className = "pdf-pages-status";
+      errMsg.textContent = "資料の表示に失敗しました。上の「Googleドライブで開く」からお試しください。";
+      containerEl.appendChild(errMsg);
     });
   }
 
-  var refDocBlobUrls = {}; // key -> blob URL、タブ切替のたびに取り直さないようキャッシュ
-  var refDocFrames = {
-    schedule: document.querySelector("#refPanel-schedule iframe"),
-    roster: document.querySelector("#refPanel-roster iframe"),
-    committee: document.querySelector("#refPanel-committee iframe")
+  var refDocRendered = {}; // key -> true、タブ切替のたびに取り直さないようキャッシュ
+  var refDocPanels = {
+    schedule: document.querySelector('#refPanel-schedule .pdf-pages'),
+    roster: document.querySelector('#refPanel-roster .pdf-pages'),
+    committee: document.querySelector('#refPanel-committee .pdf-pages')
   };
 
   // このアプリ内のiframeに埋め込んだPDFは、iOS SafariではPDF部分を
@@ -1721,33 +1801,30 @@
   els.mobileOpenLink.addEventListener("click", function (e) { openRefDocInNewTab(currentRefKey(), e); });
 
   function loadRefDocIfNeeded(key) {
-    if (refDocBlobUrls[key]) return;
-    var frame = refDocFrames[key];
-    if (!frame) return;
-    frame.classList.add("loading");
+    if (refDocRendered[key]) return;
+    var panel = refDocPanels[key];
+    if (!panel) return;
+    panel.classList.add("loading");
     callBackend("getReferenceFile", { key: key }).then(function (res) {
       refDocRaw[key] = { data: res.data, mimeType: res.mimeType };
+      refDocRendered[key] = true;
       if (document.querySelector('.tab-btn[data-ref="' + key + '"]').classList.contains("active")) {
         updateRefOpenLinks(key);
       }
-      return base64ToBlobUrl(res.data, res.mimeType);
-    }).then(function (url) {
-      refDocBlobUrls[key] = url;
-      frame.src = url;
+      renderPdfIntoContainer(res.data, res.mimeType, panel);
     }).catch(function (err) {
       if (err.previewUnsupported) {
-        var panel = frame.closest(".tab-panel");
-        if (panel && !panel.querySelector(".ref-unsupported-msg")) {
-          var msg = document.createElement("p");
-          msg.className = "ref-unsupported-msg";
-          msg.textContent = "このファイルはこの画面ではプレビューできません。上の「Googleドライブで開く」から開いてください。";
-          panel.insertBefore(msg, panel.firstChild);
-        }
+        panel.innerHTML = "";
+        var msg = document.createElement("p");
+        msg.className = "pdf-pages-status";
+        msg.textContent = "このファイルはこの画面ではプレビューできません。上の「Googleドライブで開く」から開いてください。";
+        panel.appendChild(msg);
+        refDocRendered[key] = true;
       } else {
         showToast(err.message || "資料の読み込みに失敗しました");
       }
     }).then(function () {
-      frame.classList.remove("loading");
+      panel.classList.remove("loading");
     });
   }
 
@@ -1777,9 +1854,7 @@
     btn.disabled = true;
     btn.textContent = "読み込み中…";
     callBackend("getCommitteeFile", { key: key }).then(function (res) {
-      return base64ToBlobUrl(res.data, res.mimeType);
-    }).then(function (url) {
-      openPdfOverlay(url);
+      openPdfOverlay(res.data, res.mimeType);
     }).catch(function (err) {
       showToast(err.message || "読み込みに失敗しました");
     }).then(function () {
